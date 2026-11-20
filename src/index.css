@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-noir-bg: #0C0E12;
+  --color-noir-surface: #13161D;
+  --color-noir-panel: #191E27;
+  --color-noir-border: #28303E;
+  --color-noir-ink: #ECE6D8;
+  --color-noir-muted: #98A2B3;
+  --color-noir-amber: #D99B38;
+  --color-noir-amber-bright: #EBB556;
+  --color-noir-crimson: #C93B3B;
+  --color-noir-sage: #4D9A76;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #0C0E12;
+    color: #ECE6D8;
+    font-family: var(--font-sans);
+    letter-spacing: 0.01em;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  .font-mono-tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid #EBB556;
+    outline-offset: 2px;
+  }
+}
+
+/* Custom restrained dark scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #101319;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2C3444;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3F4A5F;
+}
+
+@keyframes hotspotPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.35;
+  }
+}
+
+.animate-hotspot-ring {
+  animation: hotspotPulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-hotspot-ring {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
