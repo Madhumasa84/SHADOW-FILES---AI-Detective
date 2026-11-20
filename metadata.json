@@ -1,6 +1,8 @@
 {
-  "name": "SHADOW FILES — AI Detective",
+  "name": "SHADOW FILES - AI Detective",
   "description": "A cinematic noir detective mystery game with interactive crime scenes, AI-powered suspect interrogations, a drag-and-drop evidence board, and logical case resolution.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
