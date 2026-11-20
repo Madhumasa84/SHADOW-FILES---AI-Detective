@@ -112,7 +112,7 @@ export function TitleScreen({
               letterSpacing="3.4"
               fontWeight="500"
             >
-              AI DETECTIVE INVESTIGATION
+              NOIR DETECTIVE INVESTIGATION
             </text>
             <text
               x="2"
@@ -140,7 +140,7 @@ export function TitleScreen({
 
           <p className="mb-8 max-w-md text-sm sm:text-base leading-relaxed text-[#C9C3B6]">
             A founder vanishes from a locked 42nd-floor penthouse during a storm. Inspect three
-            crime scenes, interrogate four AI-driven suspects, and expose the truth on the evidence
+            crime scenes, interrogate four suspects, and expose the truth on the evidence
             board.
           </p>
 

@@ -4,7 +4,7 @@ import type {
   InterrogateApiRequest,
   InterrogateApiResponse,
   Suspect,
-} from './types';
+} from './types.ts';
 
 const VALID_EMOTIONS: EmotionalState[] = [
   'composed',
@@ -199,7 +199,7 @@ export function validateInterrogationOutput(
   return {
     reply,
     emotionalState: emotion,
-    mode: 'ai',
+    mode: 'local',
     unlockedTestimonyId,
     contradictionReacted: Boolean(raw.contradictionReacted || presentedContradicts),
   };

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  AlertTriangle,
   FileCheck2,
   FolderOpen,
   MessageSquare,
@@ -11,11 +10,11 @@ import {
   X,
 } from 'lucide-react';
 import { getSuspectPortraitCamera } from '../game/camera';
+import { generateScriptedInterrogationReply } from '../game/scriptedDialogue';
 import type {
   CaseFile,
   Clue,
   EmotionalState,
-  InterrogateApiResponse,
   InterrogationMessage,
   Suspect,
 } from '../game/types';
@@ -64,8 +63,6 @@ export function InterrogationRoom({
   const [showEvidencePicker, setShowEvidencePicker] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [lastMode, setLastMode] = useState<'ai' | 'scripted_fallback' | null>(null);
-  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
   const [contradictionPulse, setContradictionPulse] = useState(false);
 
   const portraitCam = getSuspectPortraitCamera(emotion, contradictionPulse);
@@ -112,38 +109,22 @@ export function InterrogationRoom({
     };
 
     try {
-      const res = await fetch('/api/interrogate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          caseId: caseFile.id,
-          suspectId: suspect.id,
-          question: finalQuestion,
-          presentedClueId: clueToPresent,
-          discoveredClueIds,
-          unlockedTestimonyIds,
-          history: messages.slice(-8).map((m) => ({
-            sender: m.sender,
-            text: m.text,
-            presentedClueId: m.presentedClueId,
-          })),
-        }),
+      // Brief noir pacing beat so suspect reaction feels deliberate without any external API calls
+      await new Promise((resolve) => window.setTimeout(resolve, 340));
+
+      const data = generateScriptedInterrogationReply(caseFile, {
+        caseId: caseFile.id,
+        suspectId: suspect.id,
+        question: finalQuestion.slice(0, 600),
+        presentedClueId: clueToPresent,
+        discoveredClueIds,
+        unlockedTestimonyIds,
+        history: messages.slice(-8).map((m) => ({
+          sender: m.sender,
+          text: m.text,
+          presentedClueId: m.presentedClueId,
+        })),
       });
-
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errBody.error || `Server returned ${res.status}`);
-      }
-
-      const data = (await res.json()) as InterrogateApiResponse;
-      setLastMode(data.mode);
-      if (data.mode === 'scripted_fallback') {
-        setFallbackNotice(
-          data.fallbackReason || 'Live AI service unavailable; running deterministic scripted dialogue.'
-        );
-      } else {
-        setFallbackNotice(null);
-      }
 
       const suspectMsg: InterrogationMessage = {
         id: `sus_${Date.now()}`,
@@ -166,9 +147,7 @@ export function InterrogationRoom({
       setShowEvidencePicker(false);
     } catch (err) {
       setErrorMsg(
-        err instanceof Error
-          ? err.message
-          : 'Unable to reach interrogation server. Please try again.'
+        err instanceof Error ? err.message : 'Unable to process question. Please try again.'
       );
     } finally {
       setIsSending(false);
@@ -346,19 +325,6 @@ export function InterrogationRoom({
 
         {/* Right Interrogation Chat & Evidence Confrontation Area */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#0D1016]">
-          {/* Clearly Labeled Fallback Banner (only shown if API fell back to scripted dialogue) */}
-          {lastMode === 'scripted_fallback' && fallbackNotice && (
-            <div
-              role="status"
-              className="shrink-0 flex items-center gap-2 border-b border-[#D99B38]/35 bg-[#1D1810] px-4 py-2 text-xs text-[#ECC378]"
-            >
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>
-                <strong>Scripted Dialogue Mode:</strong> {fallbackNotice}
-              </span>
-            </div>
-          )}
-
           {/* Transcript History */}
           <div
             data-testid="interrogation-transcript"
@@ -389,12 +355,6 @@ export function InterrogationRoom({
                         <span className={EMOTION_META[msg.emotionalState].toneClass}>
                           {EMOTION_META[msg.emotionalState].label}
                         </span>
-                      </>
-                    )}
-                    {!isDetective && msg.mode === 'scripted_fallback' && (
-                      <>
-                        <span aria-hidden="true">·</span>
-                        <span className="text-[#D99B38]">Scripted Fallback</span>
                       </>
                     )}
                   </div>

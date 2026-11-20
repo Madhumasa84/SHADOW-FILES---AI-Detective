@@ -172,7 +172,7 @@ export interface InterrogationMessage {
   text: string;
   presentedClueId?: string;
   emotionalState?: EmotionalState;
-  mode?: 'ai' | 'scripted_fallback';
+  mode?: 'local';
   unlockedTestimonyId?: string;
   contradictionFlag?: boolean;
   timestamp: number;
@@ -242,7 +242,7 @@ export interface InterrogateApiRequest {
 export interface InterrogateApiResponse {
   reply: string;
   emotionalState: EmotionalState;
-  mode: 'ai' | 'scripted_fallback';
+  mode: 'local';
   fallbackReason?: string;
   unlockedTestimonyId?: string;
   contradictionReacted: boolean;

@@ -148,11 +148,24 @@ test('Interrogation guard blocks inaccessible facts, unauthorized unlocks, and p
   };
   assert.ok(getEligibleTestimonyIds(aris, reqWithKeycard).includes('test_aris_b1_admit'));
 
-  // Scripted fallback also responds accurately and labels fallback mode
-  const fallback = generateScriptedInterrogationReply(c, reqWithKeycard, 'No API key');
-  assert.equal(fallback.mode, 'scripted_fallback');
-  assert.equal(fallback.unlockedTestimonyId, 'test_aris_b1_admit');
-  assert.equal(fallback.contradictionReacted, true);
+  // Local keyless interrogation engine responds accurately and unlocks testimony
+  const localReply = generateScriptedInterrogationReply(c, reqWithKeycard);
+  assert.equal(localReply.mode, 'local');
+  assert.equal(localReply.unlockedTestimonyId, 'test_aris_b1_admit');
+  assert.equal(localReply.contradictionReacted, true);
+
+  // Also responds cleanly to general natural-language queries with zero external dependencies
+  const topicReply = generateScriptedInterrogationReply(c, {
+    caseId: c.id,
+    suspectId: 'priya-nair',
+    question: 'Who holds the ADM-04 security override?',
+    presentedClueId: null,
+    discoveredClueIds: [],
+    unlockedTestimonyIds: [],
+    history: [],
+  });
+  assert.equal(topicReply.mode, 'local');
+  assert.ok(topicReply.reply.includes('ADM-04'));
 });
 
 test('Accusation evaluation produces solved, unsupported, and wrong_suspect outcomes deterministically', () => {

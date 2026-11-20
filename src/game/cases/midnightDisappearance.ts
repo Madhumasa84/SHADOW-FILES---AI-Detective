@@ -1,4 +1,4 @@
-import type { CaseFile, CasePreviewMeta } from '../types';
+import type { CaseFile, CasePreviewMeta } from '../types.ts';
 
 export const CASE_ARCHIVE_PREVIEWS: CasePreviewMeta[] = [
   {
