@@ -6,19 +6,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AccusationModal } from './components/AccusationModal';
+import { BLACKJACK_BACKDROP_URL, BlackjackGame } from './components/BlackjackGame';
 import { CaseResultScreen } from './components/CaseResultScreen';
+import { CHESS_BACKDROP_URL, ChessGame } from './components/ChessGame';
 import { CinematicCameraOverlay } from './components/CinematicCameraOverlay';
 import { CrimeSceneView } from './components/CrimeSceneView';
 import { DetectiveNotebook } from './components/DetectiveNotebook';
 import { EvidenceBoard } from './components/EvidenceBoard';
-import { GameLauncher } from './components/GameLauncher';
+import { GameLauncher, type LaunchableGameId } from './components/GameLauncher';
 import { HintModal } from './components/HintModal';
 import { InterrogationRoom } from './components/InterrogationRoom';
 import { PauseModal } from './components/PauseModal';
 import { RacingGame } from './components/RacingGame';
+import { SNAKE_BACKDROP_URL, SnakeGame } from './components/SnakeGame';
+import { TETRIS_BACKDROP_URL, TetrisGame } from './components/TetrisGame';
+import { TILES2048_BACKDROP_URL, Tiles2048Game } from './components/Tiles2048Game';
 import { TitleScreen } from './components/TitleScreen';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
+import { loadBlackjackRecords, type BlackjackRecords } from './blackjack/engine';
+import { loadChessRecords } from './chess/engine';
+import type { ChessRecords } from './chess/types';
 import { loadRacingRecords, type RacingRecords } from './racing/engine';
+import { loadSnakeRecords, type SnakeRecords } from './snake/engine';
+import { loadTetrisRecords, type TetrisRecords } from './tetris/engine';
+import { load2048Records, type Records2048 } from './tiles2048/engine';
 import {
   getLocationTransitionPreset,
   getWorkspaceCameraVariants,
@@ -53,7 +64,7 @@ const ACTIVE_CASE = MIDNIGHT_DISAPPEARANCE_CASE;
 const SAVE_KEY = `${STORAGE_KEY_PREFIX}${ACTIVE_CASE.id}`;
 const RACING_BACKDROP_URL = '/src/assets/images/racing_midnight_circuit_1795262317862.jpg';
 
-type SelectedGame = 'hub' | 'detective' | 'racing';
+type SelectedGame = 'hub' | LaunchableGameId;
 
 function loadSavedState(): InvestigationState | null {
   if (typeof window === 'undefined') return null;
@@ -69,19 +80,43 @@ function getInitialSelectedGame(): SelectedGame {
   if (typeof window === 'undefined') return 'hub';
   const params = new URLSearchParams(window.location.search);
   const game = params.get('game');
-  if (game === 'racing') return 'racing';
+  if (
+    game === 'racing' ||
+    game === 'chess' ||
+    game === '2048' ||
+    game === 'snake' ||
+    game === 'tetris' ||
+    game === 'blackjack'
+  ) {
+    return game;
+  }
   if (game === 'detective' || params.get('autostart') === '1') return 'detective';
   return 'hub';
 }
 
+function getAutoStartFor(target: LaunchableGameId): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('game') === target && params.get('autostart') === '1';
+}
+
 export default function App() {
   const [selectedGame, setSelectedGame] = useState<SelectedGame>(() => getInitialSelectedGame());
-  const [racingAutoStart] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const params = new URLSearchParams(window.location.search);
-    return params.get('game') === 'racing' && params.get('autostart') === '1';
-  });
+  const [racingAutoStart] = useState<boolean>(() => getAutoStartFor('racing'));
+  const [chessAutoStart] = useState<boolean>(() => getAutoStartFor('chess'));
+  const [tiles2048AutoStart] = useState<boolean>(() => getAutoStartFor('2048'));
+  const [snakeAutoStart] = useState<boolean>(() => getAutoStartFor('snake'));
+  const [tetrisAutoStart] = useState<boolean>(() => getAutoStartFor('tetris'));
+  const [blackjackAutoStart] = useState<boolean>(() => getAutoStartFor('blackjack'));
+
   const [racingRecords, setRacingRecords] = useState<RacingRecords>(() => loadRacingRecords());
+  const [chessRecords, setChessRecords] = useState<ChessRecords>(() => loadChessRecords());
+  const [records2048, setRecords2048] = useState<Records2048>(() => load2048Records());
+  const [snakeRecords, setSnakeRecords] = useState<SnakeRecords>(() => loadSnakeRecords());
+  const [tetrisRecords, setTetrisRecords] = useState<TetrisRecords>(() => loadTetrisRecords());
+  const [blackjackRecords, setBlackjackRecords] = useState<BlackjackRecords>(() =>
+    loadBlackjackRecords()
+  );
 
   const [savedSnapshot, setSavedSnapshot] = useState<InvestigationState | null>(() =>
     loadSavedState()
@@ -90,7 +125,8 @@ export default function App() {
   const [phase, setPhase] = useState<GamePhase>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('autostart') === '1' && params.get('game') !== 'racing') {
+      const g = params.get('game');
+      if (params.get('autostart') === '1' && (!g || g === 'detective')) {
         return 'playing';
       }
     }
@@ -193,6 +229,11 @@ export default function App() {
     setPhase('title');
     setSavedSnapshot(loadSavedState());
     setRacingRecords(loadRacingRecords());
+    setChessRecords(loadChessRecords());
+    setRecords2048(load2048Records());
+    setSnakeRecords(loadSnakeRecords());
+    setTetrisRecords(loadTetrisRecords());
+    setBlackjackRecords(loadBlackjackRecords());
     document.body.dataset.state = 'title';
     setSelectedGame('hub');
   }, []);
@@ -479,18 +520,29 @@ export default function App() {
   if (selectedGame === 'hub') {
     return (
       <GameLauncher
-        detectiveBackdropUrl={ACTIVE_CASE.titleBackdropUrl}
-        racingBackdropUrl={RACING_BACKDROP_URL}
+        backdrops={{
+          detective: ACTIVE_CASE.titleBackdropUrl,
+          racing: RACING_BACKDROP_URL,
+          chess: CHESS_BACKDROP_URL,
+          '2048': TILES2048_BACKDROP_URL,
+          snake: SNAKE_BACKDROP_URL,
+          tetris: TETRIS_BACKDROP_URL,
+          blackjack: BLACKJACK_BACKDROP_URL,
+        }}
         hasSavedCase={hasDetectiveProgress}
         savedClueCount={savedSnapshot?.discoveredClueIds.length ?? 0}
         totalClues={ACTIVE_CASE.clues.length}
         racingRecords={racingRecords}
-        onSelectDetective={() => {
-          setPhase('title');
-          setSelectedGame('detective');
-        }}
-        onSelectRacing={() => {
-          setSelectedGame('racing');
+        chessRecords={chessRecords}
+        records2048={records2048}
+        snakeRecords={snakeRecords}
+        tetrisRecords={tetrisRecords}
+        blackjackRecords={blackjackRecords}
+        onSelectGame={(game) => {
+          if (game === 'detective') {
+            setPhase('title');
+          }
+          setSelectedGame(game);
         }}
       />
     );
@@ -498,6 +550,26 @@ export default function App() {
 
   if (selectedGame === 'racing') {
     return <RacingGame autoStart={racingAutoStart} onSwitchGame={handleReturnToHub} />;
+  }
+
+  if (selectedGame === 'chess') {
+    return <ChessGame autoStart={chessAutoStart} onSwitchGame={handleReturnToHub} />;
+  }
+
+  if (selectedGame === '2048') {
+    return <Tiles2048Game autoStart={tiles2048AutoStart} onSwitchGame={handleReturnToHub} />;
+  }
+
+  if (selectedGame === 'snake') {
+    return <SnakeGame autoStart={snakeAutoStart} onSwitchGame={handleReturnToHub} />;
+  }
+
+  if (selectedGame === 'tetris') {
+    return <TetrisGame autoStart={tetrisAutoStart} onSwitchGame={handleReturnToHub} />;
+  }
+
+  if (selectedGame === 'blackjack') {
+    return <BlackjackGame autoStart={blackjackAutoStart} onSwitchGame={handleReturnToHub} />;
   }
 
   if (phase === 'title') {

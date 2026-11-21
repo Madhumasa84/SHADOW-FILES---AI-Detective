@@ -16,16 +16,16 @@ let cachedSkyline: HTMLCanvasElement | null = null;
  * Pre-renders a seamless 360-degree nocturnal city skyline panorama once
  * so every 60 FPS frame draws the parallax horizon in 1-2 fast drawImage calls.
  */
-function getSkylinePanorama(): HTMLCanvasElement | null {
+function getSkylinePanorama(targetH: number): HTMLCanvasElement | null {
   if (typeof document === 'undefined') return null;
-  if (cachedSkyline) return cachedSkyline;
+  const h = Math.max(160, Math.min(540, Math.round(targetH)));
+  if (cachedSkyline && Math.abs(cachedSkyline.height - h) < 8) return cachedSkyline;
 
   const w = 1600;
-  const h = 260;
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
   if (!ctx) return null;
 
   // Deep midnight noir sky gradient with subtle warm sodium-amber city haze near horizon
@@ -337,20 +337,24 @@ function drawPerspectiveCar(
     : Math.max(-0.08, Math.min(0.08, car.steerAngle * 0.1));
   const brakeGlow = car.braking || car.drifting;
 
-  // Forward warm headlight cones cast onto wet asphalt for hero player car
+  // Forward warm headlight cones cast onto wet asphalt with smooth distance falloff
   if (isHeroPlayer) {
     const fwdX = Math.cos(car.angle);
     const fwdY = Math.sin(car.angle);
     const rightX = -fwdY;
     const rightY = fwdX;
+    const beamGrad = ctx.createLinearGradient(0, sp.sy - h * 0.4, 0, Math.max(cam.horizonY + 24, sp.sy - h * 2.5));
+    beamGrad.addColorStop(0, 'rgba(255, 228, 162, 0.16)');
+    beamGrad.addColorStop(0.55, 'rgba(255, 222, 148, 0.06)');
+    beamGrad.addColorStop(1, 'rgba(255, 220, 140, 0)');
     ctx.beginPath();
     for (const side of [-1, 1]) {
       const ox = car.x + fwdX * 18 + rightX * (side * 10);
       const oy = car.y + fwdY * 18 + rightY * (side * 10);
-      const fx = car.x + fwdX * 320 + rightX * (side * 58);
-      const fy = car.y + fwdY * 320 + rightY * (side * 58);
-      const ix = car.x + fwdX * 320 + rightX * (side * 4);
-      const iy = car.y + fwdY * 320 + rightY * (side * 4);
+      const fx = car.x + fwdX * 260 + rightX * (side * 54);
+      const fy = car.y + fwdY * 260 + rightY * (side * 54);
+      const ix = car.x + fwdX * 260 + rightX * (side * 3);
+      const iy = car.y + fwdY * 260 + rightY * (side * 3);
       appendProjectedPolyToPath(ctx, cam, [
         worldToCamera(cam, ox, oy, 0.5),
         worldToCamera(cam, ix, iy, 0.5),
@@ -358,7 +362,7 @@ function drawPerspectiveCar(
         worldToCamera(cam, ox + rightX * side * 6, oy + rightY * side * 6, 0.5),
       ]);
     }
-    ctx.fillStyle = 'rgba(255, 226, 158, 0.12)';
+    ctx.fillStyle = beamGrad;
     ctx.fill();
   }
 
@@ -582,16 +586,21 @@ function drawDriverHoodOverlay(
   ctx.save();
   ctx.translate(0, vibration);
 
-  // Dual headlight road glow cones (lightweight translucent polygons, zero gradient allocs)
-  ctx.fillStyle = 'rgba(255, 226, 158, 0.09)';
+  // Dual warm headlight glow cones with soft atmospheric distance falloff
+  const beamEndY = viewH * 0.52;
+  const hoodBeamGrad = ctx.createLinearGradient(0, topY + 12, 0, beamEndY);
+  hoodBeamGrad.addColorStop(0, 'rgba(255, 228, 162, 0.15)');
+  hoodBeamGrad.addColorStop(0.55, 'rgba(255, 220, 146, 0.05)');
+  hoodBeamGrad.addColorStop(1, 'rgba(255, 218, 140, 0)');
+  ctx.fillStyle = hoodBeamGrad;
   ctx.beginPath();
-  ctx.moveTo(viewW * 0.25 + rollShift, topY + 10);
-  ctx.lineTo(viewW * 0.04, viewH * 0.45);
-  ctx.lineTo(viewW * 0.44, viewH * 0.45);
+  ctx.moveTo(viewW * 0.25 + rollShift, topY + 12);
+  ctx.lineTo(viewW * 0.08, beamEndY);
+  ctx.lineTo(viewW * 0.44, beamEndY);
   ctx.closePath();
-  ctx.moveTo(viewW * 0.75 + rollShift, topY + 10);
-  ctx.lineTo(viewW * 0.56, viewH * 0.45);
-  ctx.lineTo(viewW * 0.96, viewH * 0.45);
+  ctx.moveTo(viewW * 0.75 + rollShift, topY + 12);
+  ctx.lineTo(viewW * 0.56, beamEndY);
+  ctx.lineTo(viewW * 0.92, beamEndY);
   ctx.closePath();
   ctx.fill();
 
@@ -740,34 +749,32 @@ export function renderFrontViewFrame(
     viewH,
   });
 
-  // 1. Parallax Midnight Sky & Cityscape Panorama (slice-blitted to exact viewport width)
-  const sky = getSkylinePanorama();
-  const skyH = Math.max(120, Math.ceil(cam.horizonY + 8));
+  // 1. Parallax Midnight Sky & Cityscape Panorama (exact 1:1 unscaled memcpy blit!)
+  const skyH = Math.max(160, Math.ceil(cam.horizonY + 6));
+  const sky = getSkylinePanorama(skyH);
   if (sky) {
     const normAng = ((cam.angle / (Math.PI * 2)) % 1 + 1) % 1;
     const srcStart = Math.floor(normAng * sky.width);
-    const drawScale = skyH / sky.height;
-    const srcNeeded = Math.min(sky.width, Math.ceil(viewW / drawScale) + 2);
-    const firstChunkSrc = Math.min(srcNeeded, sky.width - srcStart);
-    const firstChunkDst = firstChunkSrc * drawScale;
+    const neededW = Math.min(sky.width, Math.ceil(viewW) + 2);
+    const firstChunk = Math.min(neededW, sky.width - srcStart);
 
-    ctx.drawImage(sky, srcStart, 0, firstChunkSrc, sky.height, 0, 0, firstChunkDst + 1, skyH);
-    const remSrc = srcNeeded - firstChunkSrc;
-    if (remSrc > 0) {
-      ctx.drawImage(sky, 0, 0, remSrc, sky.height, firstChunkDst, 0, remSrc * drawScale + 1, skyH);
+    ctx.drawImage(sky, srcStart, 0, firstChunk, sky.height, 0, 0, firstChunk, sky.height);
+    const rem = neededW - firstChunk;
+    if (rem > 0) {
+      ctx.drawImage(sky, 0, 0, rem, sky.height, firstChunk, 0, rem, sky.height);
     }
   } else {
     ctx.fillStyle = '#090D16';
     ctx.fillRect(0, 0, viewW, skyH);
   }
 
-  // 2. Deep Nocturnal Wet Ground Plane (fast solid fills, zero per-frame gradient allocations)
+  // 2. Deep Nocturnal Wet Ground Plane
   ctx.fillStyle = '#0A0E16';
   ctx.fillRect(0, cam.horizonY, viewW, viewH - cam.horizonY + 4);
   ctx.fillStyle = 'rgba(217, 155, 56, 0.08)';
   ctx.fillRect(0, cam.horizonY - 2, viewW, 5);
 
-  // 3. Collect visible track segments with adaptive LOD (1-sample near, 2-sample far -> ~44 slices total)
+  // 3. Compact Adaptive-LOD Track Slices (~26 crisp convex quads from bumper to horizon)
   const { roadHalfWidth, shoulderWidth } = track.def;
   const curbOuter = roadHalfWidth + 11;
   const barrierOuter = roadHalfWidth + shoulderWidth;
@@ -779,8 +786,8 @@ export function renderFrontViewFrame(
   }
 
   const slices: SegmentSlice[] = [];
-  for (let offset = -2; offset < 62; ) {
-    const step = offset < 24 ? 1 : 2;
+  for (let offset = -4; offset < 56; ) {
+    const step = offset < 12 ? 1 : offset < 32 ? 2 : 4;
     const idx = (player.trackSampleIdx + offset + count) % count;
     const nextIdx = (idx + step) % count;
     const sA = track.samples[idx];
@@ -799,7 +806,6 @@ export function renderFrontViewFrame(
     offset += step;
   }
 
-  // Sort ground slices far-to-near
   slices.sort((a, b) => b.depthZ - a.depthZ);
 
   const boostPadBySample = new Map<number, (typeof track.def.boostPads)[number]>();
@@ -808,55 +814,79 @@ export function renderFrontViewFrame(
   }
   const boostPulse = 0.65 + 0.35 * Math.sin(world.elapsedMs * 0.009);
 
-  // 4. Batched 3D Road Surface (flat h=0 polygons never self-occlude -> 5 total fills!)
-  for (let parity = 0; parity < 2; parity++) {
-    ctx.beginPath();
-    for (const slice of slices) {
-      if (Math.floor(slice.idx / 2) % 2 !== parity) continue;
-      appendProjectedPolyToPath(ctx, cam, [
-        sampleEdgeCamPoint(cam, track, slice.idx, -barrierOuter),
-        sampleEdgeCamPoint(cam, track, slice.idx, barrierOuter),
-        sampleEdgeCamPoint(cam, track, slice.nextIdx, barrierOuter),
-        sampleEdgeCamPoint(cam, track, slice.nextIdx, -barrierOuter),
-      ]);
-    }
-    ctx.fillStyle = parity === 0 ? '#121620' : '#10141D';
-    ctx.fill();
-  }
-
-  for (let parity = 0; parity < 2; parity++) {
-    ctx.beginPath();
-    for (const slice of slices) {
-      if (Math.floor(slice.idx / 2) % 2 !== parity) continue;
-      appendProjectedPolyToPath(ctx, cam, [
-        sampleEdgeCamPoint(cam, track, slice.idx, -roadHalfWidth),
-        sampleEdgeCamPoint(cam, track, slice.idx, roadHalfWidth),
-        sampleEdgeCamPoint(cam, track, slice.nextIdx, roadHalfWidth),
-        sampleEdgeCamPoint(cam, track, slice.nextIdx, -roadHalfWidth),
-      ]);
-    }
-    ctx.fillStyle = parity === 0 ? '#1E2330' : '#191E29';
-    ctx.fill();
-  }
-
-  // Batched center polished dark racing groove (near/mid range)
-  const grooveW = roadHalfWidth * 0.54;
-  ctx.beginPath();
+  // 4. Individual Simple Convex Quad Road Slices (Skia fast-path: 4 vertices per fill, zero multi-subpath stall!)
   for (const slice of slices) {
-    if (slice.depthZ >= 900) continue;
-    appendProjectedPolyToPath(ctx, cam, [
-      sampleEdgeCamPoint(cam, track, slice.idx, -grooveW),
-      sampleEdgeCamPoint(cam, track, slice.idx, grooveW),
-      sampleEdgeCamPoint(cam, track, slice.nextIdx, grooveW),
-      sampleEdgeCamPoint(cam, track, slice.nextIdx, -grooveW),
-    ]);
-  }
-  ctx.fillStyle = 'rgba(12, 16, 24, 0.36)';
-  ctx.fill();
+    const { idx, nextIdx, depthZ } = slice;
+    const alt = Math.floor(idx / 2) % 2 === 0;
+    const curbAlt = idx % 2 === 0;
 
-  // Start / Finish checkered strip & pulsing boost pads on road surface
-  for (const slice of slices) {
-    const { idx, nextIdx } = slice;
+    // Wet runoff shoulder
+    drawProjectedPoly(
+      ctx,
+      cam,
+      [
+        sampleEdgeCamPoint(cam, track, idx, -barrierOuter),
+        sampleEdgeCamPoint(cam, track, idx, barrierOuter),
+        sampleEdgeCamPoint(cam, track, nextIdx, barrierOuter),
+        sampleEdgeCamPoint(cam, track, nextIdx, -barrierOuter),
+      ],
+      alt ? '#121620' : '#10141D'
+    );
+
+    // Alternating crimson & warm-cream curbs
+    const curbColor = curbAlt ? '#B53838' : '#CFC7B6';
+    drawProjectedPoly(
+      ctx,
+      cam,
+      [
+        sampleEdgeCamPoint(cam, track, idx, -curbOuter),
+        sampleEdgeCamPoint(cam, track, idx, -roadHalfWidth),
+        sampleEdgeCamPoint(cam, track, nextIdx, -roadHalfWidth),
+        sampleEdgeCamPoint(cam, track, nextIdx, -curbOuter),
+      ],
+      curbColor
+    );
+    drawProjectedPoly(
+      ctx,
+      cam,
+      [
+        sampleEdgeCamPoint(cam, track, idx, roadHalfWidth),
+        sampleEdgeCamPoint(cam, track, idx, curbOuter),
+        sampleEdgeCamPoint(cam, track, nextIdx, curbOuter),
+        sampleEdgeCamPoint(cam, track, nextIdx, roadHalfWidth),
+      ],
+      curbColor
+    );
+
+    // Main wet asphalt road surface
+    drawProjectedPoly(
+      ctx,
+      cam,
+      [
+        sampleEdgeCamPoint(cam, track, idx, -roadHalfWidth),
+        sampleEdgeCamPoint(cam, track, idx, roadHalfWidth),
+        sampleEdgeCamPoint(cam, track, nextIdx, roadHalfWidth),
+        sampleEdgeCamPoint(cam, track, nextIdx, -roadHalfWidth),
+      ],
+      alt ? '#1E2330' : '#191E29'
+    );
+
+    // Dashed amber centerline guide
+    if (curbAlt && depthZ < 1300) {
+      drawProjectedPoly(
+        ctx,
+        cam,
+        [
+          sampleEdgeCamPoint(cam, track, idx, -3),
+          sampleEdgeCamPoint(cam, track, idx, 3),
+          sampleEdgeCamPoint(cam, track, nextIdx, 3),
+          sampleEdgeCamPoint(cam, track, nextIdx, -3),
+        ],
+        'rgba(217, 155, 56, 0.52)'
+      );
+    }
+
+    // Start / Finish checkered strip across road on sample 0
     if (idx === 0) {
       const tiles = 8;
       const tileW = (roadHalfWidth * 2) / tiles;
@@ -877,6 +907,7 @@ export function renderFrontViewFrame(
       }
     }
 
+    // Glowing nitro boost pad
     const pad = boostPadBySample.get(idx);
     if (pad) {
       const padHalfW = pad.width * 0.72;
@@ -908,61 +939,6 @@ export function renderFrontViewFrame(
     }
   }
 
-  // 4b. Batched Road Markings (2 curb paths + 1 amber centerline path + 1 edge line path = only 4 fills!)
-  for (let parity = 0; parity < 2; parity++) {
-    ctx.beginPath();
-    for (const slice of slices) {
-      if ((slice.idx % 2) !== parity) continue;
-      const { idx, nextIdx } = slice;
-      appendProjectedPolyToPath(ctx, cam, [
-        sampleEdgeCamPoint(cam, track, idx, -curbOuter),
-        sampleEdgeCamPoint(cam, track, idx, -roadHalfWidth),
-        sampleEdgeCamPoint(cam, track, nextIdx, -roadHalfWidth),
-        sampleEdgeCamPoint(cam, track, nextIdx, -curbOuter),
-      ]);
-      appendProjectedPolyToPath(ctx, cam, [
-        sampleEdgeCamPoint(cam, track, idx, roadHalfWidth),
-        sampleEdgeCamPoint(cam, track, idx, curbOuter),
-        sampleEdgeCamPoint(cam, track, nextIdx, curbOuter),
-        sampleEdgeCamPoint(cam, track, nextIdx, roadHalfWidth),
-      ]);
-    }
-    ctx.fillStyle = parity === 0 ? '#B53838' : '#CFC7B6';
-    ctx.fill();
-  }
-
-  // Batched dashed amber centerline
-  ctx.beginPath();
-  for (const slice of slices) {
-    if (slice.idx % 2 !== 0 || slice.depthZ > 1500) continue;
-    appendProjectedPolyToPath(ctx, cam, [
-      sampleEdgeCamPoint(cam, track, slice.idx, -3),
-      sampleEdgeCamPoint(cam, track, slice.idx, 3),
-      sampleEdgeCamPoint(cam, track, slice.nextIdx, 3),
-      sampleEdgeCamPoint(cam, track, slice.nextIdx, -3),
-    ]);
-  }
-  ctx.fillStyle = 'rgba(217, 155, 56, 0.48)';
-  ctx.fill();
-
-  // Batched crisp cream road-edge lines (near/mid range)
-  ctx.beginPath();
-  for (const slice of slices) {
-    if (slice.depthZ > 1100) continue;
-    for (const side of [-1, 1]) {
-      const inner = side * (roadHalfWidth - 4.5);
-      const outer = side * (roadHalfWidth - 1.5);
-      appendProjectedPolyToPath(ctx, cam, [
-        sampleEdgeCamPoint(cam, track, slice.idx, inner),
-        sampleEdgeCamPoint(cam, track, slice.idx, outer),
-        sampleEdgeCamPoint(cam, track, slice.nextIdx, outer),
-        sampleEdgeCamPoint(cam, track, slice.nextIdx, inner),
-      ]);
-    }
-  }
-  ctx.fillStyle = 'rgba(232, 226, 212, 0.42)';
-  ctx.fill();
-
   // 5. Depth-Sorted 3D Vertical World Queue (guardrails, streetlamps, gantry, opponent cars, particles)
   const queue: Drawable3D[] = [];
 
@@ -974,14 +950,14 @@ export function renderFrontViewFrame(
     const sB = track.samples[nextIdx];
     const sharpCorner = Math.abs(sA.curvature) > 0.0018;
 
-    // 3D Guardrail walls within 1350 units
-    if (depthZ < 1350) {
+    // 3D Guardrail walls within 1150 units
+    if (depthZ < 1150) {
       for (const side of [-1, 1]) {
         const wallLat = side * barrierOuter;
         const b0 = worldToCamera(cam, sA.x + sA.nx * wallLat, sA.y + sA.ny * wallLat, 0);
         const b1 = worldToCamera(cam, sB.x + sB.nx * wallLat, sB.y + sB.ny * wallLat, 0);
         const wallDepth = (b0.cz + b1.cz) * 0.5;
-        if (wallDepth < cam.nearZ - 16 || wallDepth > 1350) continue;
+        if (wallDepth < cam.nearZ || wallDepth > 1150) continue;
 
         const t0 = worldToCamera(cam, sA.x + sA.nx * wallLat, sA.y + sA.ny * wallLat, 17);
         const t1 = worldToCamera(cam, sB.x + sB.nx * wallLat, sB.y + sB.ny * wallLat, 17);

@@ -94,8 +94,8 @@ export function buildCamera3D(params: {
     height,
     focal,
     horizonY,
-    nearZ: isHood ? 18 : 28,
-    farZ: 2350,
+    nearZ: isHood ? 22 : 42,
+    farZ: 2200,
     viewW,
     viewH,
   };

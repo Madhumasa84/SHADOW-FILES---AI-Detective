@@ -242,7 +242,7 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
     if (!ctx) return;
 
     let width = container.clientWidth || window.innerWidth;
