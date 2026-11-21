@@ -11,11 +11,14 @@ import { CinematicCameraOverlay } from './components/CinematicCameraOverlay';
 import { CrimeSceneView } from './components/CrimeSceneView';
 import { DetectiveNotebook } from './components/DetectiveNotebook';
 import { EvidenceBoard } from './components/EvidenceBoard';
+import { GameLauncher } from './components/GameLauncher';
 import { HintModal } from './components/HintModal';
 import { InterrogationRoom } from './components/InterrogationRoom';
 import { PauseModal } from './components/PauseModal';
+import { RacingGame } from './components/RacingGame';
 import { TitleScreen } from './components/TitleScreen';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
+import { loadRacingRecords, type RacingRecords } from './racing/engine';
 import {
   getLocationTransitionPreset,
   getWorkspaceCameraVariants,
@@ -48,6 +51,9 @@ import { noirAudio } from './utils/audio';
 
 const ACTIVE_CASE = MIDNIGHT_DISAPPEARANCE_CASE;
 const SAVE_KEY = `${STORAGE_KEY_PREFIX}${ACTIVE_CASE.id}`;
+const RACING_BACKDROP_URL = '/src/assets/images/racing_midnight_circuit_1795262317862.jpg';
+
+type SelectedGame = 'hub' | 'detective' | 'racing';
 
 function loadSavedState(): InvestigationState | null {
   if (typeof window === 'undefined') return null;
@@ -59,7 +65,24 @@ function loadSavedState(): InvestigationState | null {
   }
 }
 
+function getInitialSelectedGame(): SelectedGame {
+  if (typeof window === 'undefined') return 'hub';
+  const params = new URLSearchParams(window.location.search);
+  const game = params.get('game');
+  if (game === 'racing') return 'racing';
+  if (game === 'detective' || params.get('autostart') === '1') return 'detective';
+  return 'hub';
+}
+
 export default function App() {
+  const [selectedGame, setSelectedGame] = useState<SelectedGame>(() => getInitialSelectedGame());
+  const [racingAutoStart] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('game') === 'racing' && params.get('autostart') === '1';
+  });
+  const [racingRecords, setRacingRecords] = useState<RacingRecords>(() => loadRacingRecords());
+
   const [savedSnapshot, setSavedSnapshot] = useState<InvestigationState | null>(() =>
     loadSavedState()
   );
@@ -67,7 +90,7 @@ export default function App() {
   const [phase, setPhase] = useState<GamePhase>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('autostart') === '1') {
+      if (params.get('autostart') === '1' && params.get('game') !== 'racing') {
         return 'playing';
       }
     }
@@ -109,25 +132,29 @@ export default function App() {
     };
   }, []);
 
-  // Mirror game state machine to document.body.dataset.state
+  // Mirror game state machine to document.body.dataset.state for hub & detective mode
   useEffect(() => {
-    document.body.dataset.state = phase;
-  }, [phase]);
+    if (selectedGame === 'hub') {
+      document.body.dataset.state = 'title';
+    } else if (selectedGame === 'detective') {
+      document.body.dataset.state = phase;
+    }
+  }, [selectedGame, phase]);
 
   // Persist investigation state whenever playing or completed
   useEffect(() => {
-    if (phase === 'title') return;
+    if (selectedGame !== 'detective' || phase === 'title') return;
     try {
       window.localStorage.setItem(SAVE_KEY, serializeInvestigationState(state));
       setSavedSnapshot(state);
     } catch {
       // Ignore storage quota errors
     }
-  }, [state, phase]);
+  }, [state, phase, selectedGame]);
 
-  // Elapsed timer ticks once per second only during active play
+  // Elapsed timer ticks once per second only during active detective play
   useEffect(() => {
-    if (phase !== 'playing') return;
+    if (selectedGame !== 'detective' || phase !== 'playing') return;
     const timer = window.setInterval(() => {
       setState((prev) => ({
         ...prev,
@@ -135,7 +162,7 @@ export default function App() {
       }));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [phase]);
+  }, [phase, selectedGame]);
 
   // Auto-clear brief toast notifications
   useEffect(() => {
@@ -144,14 +171,14 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [toastText]);
 
-  // Silence ambient audio on pause/unmount
+  // Silence detective ambient audio on pause/gameover or when outside detective mode
   useEffect(() => {
-    if (phase === 'paused' || phase === 'gameover') {
+    if (selectedGame !== 'detective' || phase === 'paused' || phase === 'gameover' || phase === 'title') {
       noirAudio.pauseAmbience();
     } else if (phase === 'playing') {
       noirAudio.resumeAmbienceIfEnabled();
     }
-  }, [phase]);
+  }, [phase, selectedGame]);
 
   useEffect(() => {
     return () => {
@@ -159,13 +186,25 @@ export default function App() {
     };
   }, []);
 
+  const handleReturnToHub = useCallback(() => {
+    noirAudio.pauseAmbience();
+    setActiveHint(null);
+    setShowAccusation(false);
+    setPhase('title');
+    setSavedSnapshot(loadSavedState());
+    setRacingRecords(loadRacingRecords());
+    document.body.dataset.state = 'title';
+    setSelectedGame('hub');
+  }, []);
+
   const handleToggleMute = useCallback(() => {
     const nextMuted = noirAudio.toggleMute();
     setMuted(nextMuted);
   }, []);
 
-  // Global keyboard shortcuts: Esc / P to pause/resume, M to toggle audio
+  // Global detective keyboard shortcuts: Esc / P to pause/resume, M to toggle audio
   useEffect(() => {
+    if (selectedGame !== 'detective') return;
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
@@ -202,7 +241,7 @@ export default function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [phase, activeHint, showAccusation, handleToggleMute]);
+  }, [selectedGame, phase, activeHint, showAccusation, handleToggleMute]);
 
   const handleStartNewCase = useCallback(() => {
     const fresh = createInitialInvestigationState(ACTIVE_CASE);
@@ -431,21 +470,46 @@ export default function App() {
     [state, triggerNarrativeBeat]
   );
 
-  if (phase === 'title') {
-    const hasProgress =
-      !!savedSnapshot &&
-      (savedSnapshot.discoveredClueIds.length > 0 ||
-        savedSnapshot.questionedSuspectIds.length > 0) &&
-      !savedSnapshot.accusationResult;
+  const hasDetectiveProgress =
+    !!savedSnapshot &&
+    (savedSnapshot.discoveredClueIds.length > 0 ||
+      savedSnapshot.questionedSuspectIds.length > 0) &&
+    !savedSnapshot.accusationResult;
 
+  if (selectedGame === 'hub') {
+    return (
+      <GameLauncher
+        detectiveBackdropUrl={ACTIVE_CASE.titleBackdropUrl}
+        racingBackdropUrl={RACING_BACKDROP_URL}
+        hasSavedCase={hasDetectiveProgress}
+        savedClueCount={savedSnapshot?.discoveredClueIds.length ?? 0}
+        totalClues={ACTIVE_CASE.clues.length}
+        racingRecords={racingRecords}
+        onSelectDetective={() => {
+          setPhase('title');
+          setSelectedGame('detective');
+        }}
+        onSelectRacing={() => {
+          setSelectedGame('racing');
+        }}
+      />
+    );
+  }
+
+  if (selectedGame === 'racing') {
+    return <RacingGame autoStart={racingAutoStart} onSwitchGame={handleReturnToHub} />;
+  }
+
+  if (phase === 'title') {
     return (
       <TitleScreen
         backdropUrl={ACTIVE_CASE.titleBackdropUrl}
-        hasSavedCase={hasProgress}
+        hasSavedCase={hasDetectiveProgress}
         savedClueCount={savedSnapshot?.discoveredClueIds.length ?? 0}
         totalClues={ACTIVE_CASE.clues.length}
         onStartNewCase={handleStartNewCase}
         onResumeCase={handleResumeCase}
+        onSwitchGame={handleReturnToHub}
       />
     );
   }
@@ -607,6 +671,7 @@ export default function App() {
             document.body.dataset.state = 'title';
             setPhase('title');
           }}
+          onSwitchGame={handleReturnToHub}
         />
       )}
     </div>

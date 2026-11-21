@@ -10,6 +10,7 @@ interface PauseModalProps {
   onResume: () => void;
   onRestart: () => void;
   onReturnTitle: () => void;
+  onSwitchGame?: () => void;
 }
 
 export function PauseModal({
@@ -21,6 +22,7 @@ export function PauseModal({
   onResume,
   onRestart,
   onReturnTitle,
+  onSwitchGame,
 }: PauseModalProps) {
   return (
     <div
@@ -88,6 +90,15 @@ export function PauseModal({
           >
             Return to Title Screen
           </button>
+          {onSwitchGame && (
+            <button
+              type="button"
+              onClick={onSwitchGame}
+              className="w-full rounded-md border border-[#252D3C] bg-[#10141C] px-4 py-2.5 text-sm font-medium text-[#98A2B3] hover:text-[#F2ECDC] cursor-pointer"
+            >
+              Switch Game
+            </button>
+          )}
         </div>
       </motion.div>
     </div>

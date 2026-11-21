@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
+import { ArrowLeft } from 'lucide-react';
 import { CASE_ARCHIVE_PREVIEWS } from '../game/cases/midnightDisappearance';
 import { NoirImage } from './NoirImage';
 import { RainCanvas } from './RainCanvas';
@@ -11,6 +12,7 @@ interface TitleScreenProps {
   totalClues: number;
   onStartNewCase: () => void;
   onResumeCase: () => void;
+  onSwitchGame?: () => void;
 }
 
 export function TitleScreen({
@@ -20,6 +22,7 @@ export function TitleScreen({
   totalClues,
   onStartNewCase,
   onResumeCase,
+  onSwitchGame,
 }: TitleScreenProps) {
   const [showCases, setShowCases] = useState(false);
 
@@ -72,12 +75,24 @@ export function TitleScreen({
 
       {/* Main Left-Third Negative Space Composition */}
       <main className="relative z-10 flex h-full w-full max-w-[1440px] mx-auto flex-col justify-between px-6 py-8 sm:px-12 sm:py-12">
-        {/* Top quiet archival stamp */}
-        <div className="flex items-center justify-between text-xs text-[#98A2B3]">
-          <span className="font-mono-tabular tracking-[0.18em] text-[#C4B9A2]">
-            CASE ARCHIVE · OBSIDIAN TOWER DIVISION
-          </span>
-          <span className="hidden sm:inline font-mono-tabular text-[#98A2B3]">
+        {/* Top quiet archival stamp & switch game link */}
+        <div className="flex items-center justify-between gap-4 text-xs text-[#98A2B3]">
+          <div className="flex items-center gap-4">
+            {onSwitchGame && (
+              <button
+                type="button"
+                onClick={onSwitchGame}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-[#D6DCE8] hover:text-[#F4EFE4] transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Switch Game</span>
+              </button>
+            )}
+            <span className="hidden sm:inline font-mono-tabular tracking-[0.18em] text-[#C4B9A2]">
+              CASE ARCHIVE · OBSIDIAN TOWER DIVISION
+            </span>
+          </div>
+          <span className="font-mono-tabular text-[#98A2B3]">
             CASE 01 READY · 4 SUSPECTS · 3 SCENES
           </span>
         </div>
