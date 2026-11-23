@@ -414,6 +414,8 @@ export function TetrisGame({ autoStart = false, onSwitchGame }: TetrisGameProps)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (phaseRef.current === 'title') {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           startGame();
@@ -512,7 +514,7 @@ export function TetrisGame({ autoStart = false, onSwitchGame }: TetrisGameProps)
       const world = worldRef.current;
       if (phaseRef.current === 'playing') {
         stepTetrisWorld(world, rawDt);
-        if (world.events.linesCleared > 0 || world.events.gameOver) {
+        if (world.events.linesCleared > 0 || world.events.locked || world.events.gameOver) {
           flushEvents(world);
         } else {
           hudTimer += rawDt;
@@ -733,8 +735,42 @@ export function TetrisGame({ autoStart = false, onSwitchGame }: TetrisGameProps)
         </div>
       </header>
 
+      {/* Compact Mobile HUD Strip (< sm) so Score, Level, Lines, Hold & Next are always visible */}
+      <div
+        data-testid="tetris-mobile-hud"
+        className="flex sm:hidden items-center justify-between gap-2 border-b border-[#1D2330] bg-[#10141C] px-3 py-1.5 shrink-0"
+      >
+        <div className="flex items-center gap-3 font-mono-tabular">
+          <div>
+            <div className="text-[9px] tracking-[0.14em] text-[#8E98AA]">SCORE</div>
+            <div className="text-sm font-bold text-[#EBB556] leading-tight">
+              {hud.score.toLocaleString()}
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] tracking-[0.14em] text-[#8E98AA]">LVL</div>
+            <div className="text-sm font-bold text-[#F4EFE4] leading-tight">{hud.level}</div>
+          </div>
+          <div>
+            <div className="text-[9px] tracking-[0.14em] text-[#8E98AA]">LINES</div>
+            <div className="text-sm font-bold text-[#F4EFE4] leading-tight">{hud.lines}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 font-mono-tabular text-[10px]">
+          <div className="flex items-center gap-1.5 rounded border border-[#252D3D] bg-[#141924] px-2 py-1">
+            <span className="text-[#8E98AA]">HOLD</span>
+            <span className="font-bold text-[#F4EFE4]">{hud.hold ?? '—'}</span>
+          </div>
+          <div className="flex items-center gap-1.5 rounded border border-[#252D3D] bg-[#141924] px-2 py-1">
+            <span className="text-[#8E98AA]">NEXT</span>
+            <span className="font-bold text-[#EBB556]">{hud.nextQueue[0] ?? '—'}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Center 3-Column Arcade Stage: Hold+Stats | 10x20 Well | Next Queue */}
-      <main className="mx-auto flex w-full max-w-[920px] flex-1 min-h-0 items-stretch justify-center gap-4 sm:gap-6 px-3 py-3 sm:px-6 sm:py-4">
+      <main className="mx-auto flex w-full max-w-[920px] flex-1 min-h-0 items-stretch justify-center gap-4 sm:gap-6 px-3 py-2 sm:px-6 sm:py-4">
         {/* Left Dock: Hold + Score/Level/Lines */}
         <aside className="hidden sm:flex w-[164px] shrink-0 flex-col gap-3">
           <div className="rounded-md border border-[#252D3D] bg-[#12161F] p-3">

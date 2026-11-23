@@ -341,7 +341,10 @@ interface SearchContext {
   deadline: number;
   aborted: boolean;
   nodes: number;
-  tt: Map<string, { depth: number; score: number; bestUci?: string }>;
+  tt: Map<
+    string,
+    { depth: number; score: number; flag: 'exact' | 'lower' | 'upper'; bestUci?: string }
+  >;
 }
 
 const MATE_SCORE = 100000;
@@ -456,10 +459,14 @@ function negamax(
     return 0;
   }
 
+  const origAlpha = alpha;
   const posKey = getPositionKey(pos.board, pos.turn, pos.castling, pos.enPassantSquare);
   const cached = ctx.tt.get(posKey);
   if (cached && cached.depth >= depth) {
-    return cached.score;
+    if (cached.flag === 'exact') return cached.score;
+    if (cached.flag === 'lower') alpha = Math.max(alpha, cached.score);
+    else if (cached.flag === 'upper') beta = Math.min(beta, cached.score);
+    if (alpha >= beta) return cached.score;
   }
 
   const legal = generateLegalMoves(pos, false);
@@ -495,8 +502,10 @@ function negamax(
     if (alpha >= beta) break;
   }
 
+  const flag: 'exact' | 'lower' | 'upper' =
+    bestScore <= origAlpha ? 'upper' : bestScore >= beta ? 'lower' : 'exact';
   if (ctx.tt.size < 20000) {
-    ctx.tt.set(posKey, { depth, score: bestScore, bestUci });
+    ctx.tt.set(posKey, { depth, score: bestScore, flag, bestUci });
   }
   return bestScore;
 }

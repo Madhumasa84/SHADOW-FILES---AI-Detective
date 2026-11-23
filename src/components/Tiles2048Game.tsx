@@ -147,31 +147,29 @@ export function Tiles2048Game({ autoStart = false, onSwitchGame }: Tiles2048Game
   const applyDirection = useCallback(
     (dir: Direction2048) => {
       if (phase !== 'playing') return;
-      setState((prev) => {
-        const { state: next, moved } = move2048(prev, dir);
-        if (!moved) return prev;
+      const { state: next, moved } = move2048(state, dir);
+      if (!moved) return;
 
-        const justWon2048 = next.wonMilestone && !wonCountedRef.current;
-        if (justWon2048) wonCountedRef.current = true;
+      const justWon2048 = next.wonMilestone && !wonCountedRef.current;
+      if (justWon2048) wonCountedRef.current = true;
 
-        playTileAudio(muted, next.lastMergedMax, next.isGameOver);
-        const updatedRecords = save2048Progress(
-          next.size,
-          next.score,
-          next.highestTile,
-          next.isGameOver,
-          justWon2048
-        );
-        setRecords(updatedRecords);
+      setState(next);
+      playTileAudio(muted, next.lastMergedMax, next.isGameOver);
+      const updatedRecords = save2048Progress(
+        next.size,
+        next.score,
+        next.highestTile,
+        next.isGameOver,
+        justWon2048
+      );
+      setRecords(updatedRecords);
 
-        if (next.isGameOver) {
-          document.body.dataset.state = 'gameover';
-          setPhase('gameover');
-        }
-        return next;
-      });
+      if (next.isGameOver) {
+        document.body.dataset.state = 'gameover';
+        setPhase('gameover');
+      }
     },
-    [phase, muted]
+    [phase, muted, state]
   );
 
   const handleUndo = useCallback(() => {
@@ -186,6 +184,8 @@ export function Tiles2048Game({ autoStart = false, onSwitchGame }: Tiles2048Game
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (phase === 'title') {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           startNewGame();

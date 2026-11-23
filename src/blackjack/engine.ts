@@ -423,33 +423,44 @@ export function splitActiveHand(
   const drawB = drawCard(shoe, rng);
   shoe = drawB.shoe;
 
+  const handACards = [active.cards[0], drawA.card];
+  const handBCards = [active.cards[1], drawB.card];
+  const handA21 = evaluateHand(handACards).total === 21;
+  const handB21 = evaluateHand(handBCards).total === 21;
+
   const handA: PlayerHand = {
-    cards: [active.cards[0], drawA.card],
+    cards: handACards,
     bet: active.bet,
     doubled: false,
-    stood: false,
+    stood: handA21,
     isSplitHand: true,
     outcome: null,
     payout: 0,
   };
 
   const handB: PlayerHand = {
-    cards: [active.cards[1], drawB.card],
+    cards: handBCards,
     bet: active.bet,
     doubled: false,
-    stood: false,
+    stood: handB21,
     isSplitHand: true,
     outcome: null,
     payout: 0,
   };
 
-  return {
+  const nextState: BlackjackState = {
     ...state,
     shoe,
     bankroll: state.bankroll - active.bet,
     hands: [handA, handB],
     activeHandIndex: 0,
   };
+
+  if (handA21) {
+    return advanceOrSettle(nextState, rng);
+  }
+
+  return nextState;
 }
 
 export function prepareNextBettingRound(state: BlackjackState): BlackjackState {

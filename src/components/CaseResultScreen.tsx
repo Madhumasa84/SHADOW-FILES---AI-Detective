@@ -9,6 +9,7 @@ interface CaseResultScreenProps {
   result: AccusationResult;
   onPlayAgain: () => void;
   onReturnTitle: () => void;
+  onSwitchGame?: () => void;
 }
 
 export function CaseResultScreen({
@@ -16,6 +17,7 @@ export function CaseResultScreen({
   result,
   onPlayAgain,
   onReturnTitle,
+  onSwitchGame,
 }: CaseResultScreenProps) {
   const culprit = caseFile.suspects.find((s) => s.id === caseFile.solution.culpritId);
   const accused = caseFile.suspects.find((s) => s.id === result.submitted.suspectId);
@@ -179,6 +181,15 @@ export function CaseResultScreen({
 
         {/* Actions */}
         <div className="flex flex-wrap items-center justify-end gap-3 pb-6">
+          {onSwitchGame && (
+            <button
+              type="button"
+              onClick={onSwitchGame}
+              className="rounded-md border border-[#2E384B] bg-[#151A24] px-5 py-3 text-xs font-medium text-[#D6D0C2] hover:border-[#D99B38]/60 hover:text-[#F4EFE4] cursor-pointer"
+            >
+              Switch Game
+            </button>
+          )}
           <button
             type="button"
             onClick={onReturnTitle}

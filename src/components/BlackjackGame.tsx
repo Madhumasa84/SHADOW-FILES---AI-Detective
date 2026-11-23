@@ -180,14 +180,14 @@ export function BlackjackGame({ autoStart = false, onSwitchGame }: BlackjackGame
     document.body.dataset.state = phase;
   }, [phase]);
 
-  const applySettlementCheck = useCallback(
+  const commitTableState = useCallback(
     (next: BlackjackState) => {
+      setState(next);
       if (next.stage === 'settled') {
         const updated = saveBlackjackSettlement(next);
         setRecords(updated);
         playBlackjackAudio(muted, next.roundNetDelta >= 0 ? 'win' : 'lose');
       }
-      return next;
     },
     [muted]
   );
@@ -207,40 +207,41 @@ export function BlackjackGame({ autoStart = false, onSwitchGame }: BlackjackGame
 
   const handleDeal = useCallback(() => {
     playBlackjackAudio(muted, 'deal');
-    setState((prev) => applySettlementCheck(dealNewHand(prev)));
-  }, [muted, applySettlementCheck]);
+    commitTableState(dealNewHand(state));
+  }, [muted, state, commitTableState]);
 
   const handleHit = useCallback(() => {
     playBlackjackAudio(muted, 'deal');
-    setState((prev) => applySettlementCheck(hitActiveHand(prev)));
-  }, [muted, applySettlementCheck]);
+    commitTableState(hitActiveHand(state));
+  }, [muted, state, commitTableState]);
 
   const handleStand = useCallback(() => {
-    setState((prev) => applySettlementCheck(standActiveHand(prev)));
-  }, [applySettlementCheck]);
+    commitTableState(standActiveHand(state));
+  }, [state, commitTableState]);
 
   const handleDouble = useCallback(() => {
     playBlackjackAudio(muted, 'chip');
-    setState((prev) => applySettlementCheck(doubleDownActiveHand(prev)));
-  }, [muted, applySettlementCheck]);
+    commitTableState(doubleDownActiveHand(state));
+  }, [muted, state, commitTableState]);
 
   const handleSplit = useCallback(() => {
     playBlackjackAudio(muted, 'chip');
-    setState((prev) => splitActiveHand(prev));
-  }, [muted]);
+    commitTableState(splitActiveHand(state));
+  }, [muted, state, commitTableState]);
 
   const handleNextRound = useCallback(() => {
     setState((prev) => prepareNextBettingRound(prev));
   }, []);
 
   const handleDealSameBet = useCallback(() => {
+    const prepared = prepareNextBettingRound(state);
+    if (prepared.pendingBet <= 0) {
+      setState(prepared);
+      return;
+    }
     playBlackjackAudio(muted, 'deal');
-    setState((prev) => {
-      const prepared = prepareNextBettingRound(prev);
-      if (prepared.pendingBet <= 0) return prepared;
-      return applySettlementCheck(dealNewHand(prepared));
-    });
-  }, [muted, applySettlementCheck]);
+    commitTableState(dealNewHand(prepared));
+  }, [muted, state, commitTableState]);
 
   const handleResetSession = useCallback(() => {
     setState(createInitialBlackjackState(1000));
@@ -249,7 +250,10 @@ export function BlackjackGame({ autoStart = false, onSwitchGame }: BlackjackGame
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+
       if (phase === 'title') {
+        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           enterTable();
@@ -276,6 +280,7 @@ export function BlackjackGame({ autoStart = false, onSwitchGame }: BlackjackGame
       if (phase !== 'playing') return;
 
       if (state.stage === 'betting' && (e.key === 'Enter' || e.key === ' ')) {
+        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
         if (state.pendingBet > 0) {
           e.preventDefault();
           handleDeal();
@@ -292,14 +297,29 @@ export function BlackjackGame({ autoStart = false, onSwitchGame }: BlackjackGame
           handleDouble();
         }
       } else if (state.stage === 'settled' && (e.key === 'Enter' || e.key === ' ')) {
+        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
         e.preventDefault();
-        if (state.bankroll > 0) handleNextRound();
+        if (state.bankroll > 0) {
+          handleNextRound();
+        } else {
+          handleResetSession();
+        }
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [phase, state, enterTable, handleDeal, handleHit, handleStand, handleDouble, handleNextRound]);
+  }, [
+    phase,
+    state,
+    enterTable,
+    handleDeal,
+    handleHit,
+    handleStand,
+    handleDouble,
+    handleNextRound,
+    handleResetSession,
+  ]);
 
   if (phase === 'title') {
     return (

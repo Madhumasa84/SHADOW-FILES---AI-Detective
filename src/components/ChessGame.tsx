@@ -4,6 +4,8 @@ import {
   Crown,
   Flag,
   Lightbulb,
+  Pause,
+  Play,
   Repeat,
   RotateCcw,
   SlidersHorizontal,
@@ -68,7 +70,9 @@ function evalToWhiteBarPercent(cp: number): number {
 }
 
 export function ChessGame({ autoStart = false, onSwitchGame }: ChessGameProps) {
-  const [phase, setPhase] = useState<'setup' | 'playing'>(() => (autoStart ? 'playing' : 'setup'));
+  const [phase, setPhase] = useState<'setup' | 'playing' | 'paused'>(() =>
+    autoStart ? 'playing' : 'setup'
+  );
   const [selectedElo, setSelectedElo] = useState<number>(1500);
   const [sidePref, setSidePref] = useState<SidePreference>('w');
   const [humanColor, setHumanColor] = useState<PieceColor>('w');
@@ -92,6 +96,8 @@ export function ChessGame({ autoStart = false, onSwitchGame }: ChessGameProps) {
       document.body.dataset.state = 'title';
     } else if (state.status !== 'playing') {
       document.body.dataset.state = 'gameover';
+    } else if (phase === 'paused') {
+      document.body.dataset.state = 'paused';
     } else {
       document.body.dataset.state = 'playing';
     }
@@ -143,10 +149,11 @@ export function ChessGame({ autoStart = false, onSwitchGame }: ChessGameProps) {
     [selectedElo, sidePref]
   );
 
-  const commitMove = useCallback((move: ChessMove) => {
-    setState((prev) => {
-      const next = applyChessMove(prev, move);
-      setEvalCp(evaluateBoard(next.board));
+  const commitMove = useCallback(
+    (move: ChessMove, evalOverride?: number) => {
+      const next = applyChessMove(state, move);
+      setState(next);
+      setEvalCp(evalOverride !== undefined ? evalOverride : evaluateBoard(next.board));
       if (next.status !== 'playing') {
         chessAudio.playGameOver(next.winner === humanColor);
       } else if (next.inCheck) {
@@ -156,25 +163,28 @@ export function ChessGame({ autoStart = false, onSwitchGame }: ChessGameProps) {
       } else {
         chessAudio.playMove();
       }
-      return next;
-    });
-    setSelectedSq(null);
-    setPendingPromotion(null);
-    setHintMove(null);
-  }, [humanColor]);
+      setSelectedSq(null);
+      setPendingPromotion(null);
+      setHintMove(null);
+    },
+    [state, humanColor]
+  );
 
   // Record finished match outcome once per game
   useEffect(() => {
-    if (phase !== 'playing' || state.status === 'playing' || recordedGameRef.current) return;
+    if (phase === 'setup' || state.status === 'playing' || recordedGameRef.current) return;
     recordedGameRef.current = true;
     const outcome =
       state.winner === null ? 'draw' : state.winner === humanColor ? 'win' : 'loss';
     setRecords(saveChessRecord(outcome, profile.rating));
   }, [phase, state.status, state.winner, humanColor, profile.rating]);
 
-  // Trigger automated opponent move whenever it's the engine's turn
+  // Trigger automated opponent move whenever it's the engine's turn and match is active
   useEffect(() => {
-    if (phase !== 'playing' || state.status !== 'playing') return;
+    if (phase !== 'playing' || state.status !== 'playing') {
+      setEngineThinking(false);
+      return;
+    }
     if (state.turn === humanColor) {
       setEngineThinking(false);
       return;
@@ -186,13 +196,63 @@ export function ChessGame({ autoStart = false, onSwitchGame }: ChessGameProps) {
       const result = chooseEngineMove(state, profile.rating);
       setEngineThinking(false);
       if (result) {
-        setEvalCp(result.evalWhiteCp);
-        commitMove(result.move);
+        commitMove(result.move, result.evalWhiteCp);
       }
     }, delayMs);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      setEngineThinking(false);
+    };
   }, [phase, state, humanColor, profile.rating, commitMove]);
+
+  const handleToggleMute = useCallback(() => {
+    setMuted(chessAudio.toggleMute());
+  }, []);
+
+  // Keyboard shortcuts: Esc/P pause (or cancel promotion), M mute, Enter/Space start on setup
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+
+      if (phase === 'setup') {
+        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          startNewMatch();
+        }
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (pendingPromotion) {
+          e.preventDefault();
+          setPendingPromotion(null);
+          return;
+        }
+        if (state.status === 'playing') {
+          e.preventDefault();
+          setPhase((prev) => (prev === 'playing' ? 'paused' : 'playing'));
+        }
+        return;
+      }
+
+      if ((e.key === 'p' || e.key === 'P') && !pendingPromotion && state.status === 'playing') {
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        e.preventDefault();
+        setPhase((prev) => (prev === 'playing' ? 'paused' : 'playing'));
+        return;
+      }
+
+      if (e.key === 'm' || e.key === 'M') {
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        handleToggleMute();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [phase, pendingPromotion, state.status, startNewMatch, handleToggleMute]);
 
   const handleSquareClick = (sq: number) => {
     if (phase !== 'playing' || state.status !== 'playing' || engineThinking) return;
@@ -272,10 +332,6 @@ export function ChessGame({ autoStart = false, onSwitchGame }: ChessGameProps) {
       winner: opponentColor,
     }));
     chessAudio.playGameOver(false);
-  };
-
-  const handleToggleMute = () => {
-    setMuted(chessAudio.toggleMute());
   };
 
   // SETUP / RATING SELECTION SCREEN
@@ -550,6 +606,7 @@ export function ChessGame({ autoStart = false, onSwitchGame }: ChessGameProps) {
             type="button"
             onClick={handleToggleMute}
             aria-label={muted ? 'Unmute chess audio' : 'Mute chess audio'}
+            title="Toggle Audio [M]"
             className="flex h-8 w-8 items-center justify-center rounded border border-[#2C3547] bg-[#151A24] text-[#C8D0DE] hover:border-[#D99B38]/65 transition-colors cursor-pointer"
           >
             {muted ? (
@@ -557,6 +614,17 @@ export function ChessGame({ autoStart = false, onSwitchGame }: ChessGameProps) {
             ) : (
               <Volume2 className="h-3.5 w-3.5 text-[#D99B38]" aria-hidden="true" />
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPhase('paused')}
+            disabled={state.status !== 'playing'}
+            aria-label="Pause chess match"
+            title="Pause [Esc / P]"
+            className="flex h-8 w-8 items-center justify-center rounded border border-[#2C3547] bg-[#151A24] text-[#C8D0DE] hover:border-[#D99B38]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          >
+            <Pause className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       </header>
@@ -924,6 +992,91 @@ export function ChessGame({ autoStart = false, onSwitchGame }: ChessGameProps) {
                   </span>
                 </button>
               ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPendingPromotion(null)}
+              className="mt-3 w-full rounded border border-[#283040] bg-[#10141C] py-2 text-xs font-medium text-[#9AA4B6] hover:text-[#F4EFE4] transition-colors cursor-pointer"
+            >
+              Cancel [Esc]
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PAUSE MODAL */}
+      {phase === 'paused' && state.status === 'playing' && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="chess-pause-title"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-[#06080C]/80 p-4"
+        >
+          <div className="w-full max-w-md rounded-lg border border-[#2E384B] bg-[#12161F] p-6 shadow-2xl">
+            <div className="font-mono-tabular text-[11px] tracking-[0.2em] text-[#D99B38]">
+              MIDNIGHT GAMBIT · PAUSED
+            </div>
+            <h2 id="chess-pause-title" className="mt-1 font-display text-2xl font-bold text-[#F4EFE4]">
+              Match Paused
+            </h2>
+
+            <div className="mt-4 grid grid-cols-3 gap-3 border-y border-[#222A3A] py-4 text-center">
+              <div>
+                <div className="text-[10px] font-mono-tabular text-[#8D97A8]">OPPONENT</div>
+                <div className="mt-1 font-mono-tabular text-lg font-bold text-[#EBB556]">
+                  {profile.rating}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono-tabular text-[#8D97A8]">MOVES</div>
+                <div className="mt-1 font-mono-tabular text-lg font-bold text-[#F4EFE4]">
+                  {Math.ceil(state.history.length / 2)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono-tabular text-[#8D97A8]">EVAL</div>
+                <div className="mt-1 font-mono-tabular text-lg font-bold text-[#F4EFE4]">
+                  {formatEvalLabel(evalCp)}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPhase('playing')}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#D99B38] px-4 py-3 text-sm font-semibold text-[#0C0E12] hover:bg-[#EBB556] transition-colors cursor-pointer"
+              >
+                <Play className="h-4 w-4" aria-hidden="true" />
+                <span>Resume Match</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => startNewMatch()}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-[#323C4F] bg-[#171C27] px-4 py-2.5 text-sm font-medium text-[#ECE6D8] hover:border-[#D99B38]/60 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                <span>Restart Match</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPhase('setup')}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-[#323C4F] bg-[#171C27] px-4 py-2.5 text-sm font-medium text-[#ECE6D8] hover:border-[#D99B38]/60 transition-colors cursor-pointer"
+              >
+                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                <span>Change Opponent Elo (500–3000)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onSwitchGame}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-[#283040] bg-[#10141C] px-4 py-2.5 text-sm font-medium text-[#9AA4B6] hover:text-[#F4EFE4] transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                <span>Switch Game</span>
+              </button>
             </div>
           </div>
         </div>

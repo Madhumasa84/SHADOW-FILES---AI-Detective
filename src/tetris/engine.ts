@@ -33,6 +33,7 @@ export interface TetrisWorld {
     moved: boolean;
     rotated: boolean;
     hardDropped: boolean;
+    locked: boolean;
     linesCleared: number;
     gameOver: boolean;
   };
@@ -349,6 +350,7 @@ export function createInitialTetrisWorld(
       moved: false,
       rotated: false,
       hardDropped: false,
+      locked: false,
       linesCleared: 0,
       gameOver: false,
     },
@@ -359,6 +361,7 @@ export function clearTetrisEvents(world: TetrisWorld): void {
   world.events.moved = false;
   world.events.rotated = false;
   world.events.hardDropped = false;
+  world.events.locked = false;
   world.events.linesCleared = 0;
   world.events.gameOver = false;
 }
@@ -476,7 +479,7 @@ export function lockActivePiece(
     const comboBonus = world.combo > 0 ? world.combo * 50 * world.level : 0;
     world.score += Math.round(basePts * world.level * b2bMult) + comboBonus;
     world.backToBack = isTetris;
-    world.level = Math.max(world.startLevel, Math.min(15, Math.floor(world.lines / 10) + 1));
+    world.level = Math.min(15, world.startLevel + Math.floor(world.lines / 10));
     world.events.linesCleared = cleared;
     world.clearFlashTimerMs = 240;
     world.shakeTrauma = Math.max(world.shakeTrauma, cleared >= 4 ? 0.65 : 0.25);
@@ -488,6 +491,8 @@ export function lockActivePiece(
   } else {
     world.combo = -1;
   }
+
+  world.events.locked = true;
 
   // Spawn next tetromino
   const nextType = popFromQueue(world, rng);

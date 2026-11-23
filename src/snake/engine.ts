@@ -43,7 +43,7 @@ export interface SnakeWorld {
   stepAccumulatorMs: number;
   elapsedMs: number;
   isGameOver: boolean;
-  deathReason: 'wall' | 'self' | null;
+  deathReason: 'wall' | 'self' | 'full' | null;
   shakeTrauma: number;
   particles: SnakeParticle[];
   events: {
@@ -76,12 +76,12 @@ export function isOppositeDir(a: SnakeDir, b: SnakeDir): boolean {
   );
 }
 
-export function spawnOpenCell(
+export function trySpawnOpenCell(
   cols: number,
   rows: number,
   occupied: GridPoint[],
   rng: () => number = Math.random
-): GridPoint {
+): GridPoint | null {
   const taken = new Set(occupied.map((p) => `${p.x},${p.y}`));
   const open: GridPoint[] = [];
   for (let y = 0; y < rows; y++) {
@@ -91,8 +91,17 @@ export function spawnOpenCell(
       }
     }
   }
-  if (open.length === 0) return { x: 0, y: 0 };
+  if (open.length === 0) return null;
   return open[Math.floor(rng() * open.length)];
+}
+
+export function spawnOpenCell(
+  cols: number,
+  rows: number,
+  occupied: GridPoint[],
+  rng: () => number = Math.random
+): GridPoint {
+  return trySpawnOpenCell(cols, rows, occupied, rng) ?? { x: 0, y: 0 };
 }
 
 export function createInitialSnakeWorld(
@@ -246,17 +255,32 @@ export function stepSnakeGridTick(
 
     const occupied = [...world.segments];
     if (world.bonusOrb) occupied.push({ x: world.bonusOrb.x, y: world.bonusOrb.y });
-    world.food = spawnOpenCell(world.cols, world.rows, occupied, rng);
+    const nextFood = trySpawnOpenCell(world.cols, world.rows, occupied, rng);
+    if (!nextFood) {
+      // Player filled the entire grid!
+      world.isGameOver = true;
+      world.deathReason = 'full';
+      world.bonusOrb = null;
+      return;
+    }
+    world.food = nextFood;
 
     // Every 5th orb spawns a timed golden bonus orb worth 3x points
     if (world.orbsEaten % 5 === 0 && !world.bonusOrb) {
-      const bonusPos = spawnOpenCell(world.cols, world.rows, [...world.segments, world.food], rng);
-      world.bonusOrb = {
-        x: bonusPos.x,
-        y: bonusPos.y,
-        ttlMs: 6500,
-        maxTtlMs: 6500,
-      };
+      const bonusPos = trySpawnOpenCell(
+        world.cols,
+        world.rows,
+        [...world.segments, world.food],
+        rng
+      );
+      if (bonusPos) {
+        world.bonusOrb = {
+          x: bonusPos.x,
+          y: bonusPos.y,
+          ttlMs: 6500,
+          maxTtlMs: 6500,
+        };
+      }
     }
 
     // Gentle speed progression

@@ -617,9 +617,9 @@ function updateRacerPhysics(
 
   // Update continuous progress for accurate live ranking
   const sAlongLap = track.samples[racer.trackSampleIdx].s;
-  // Handle cars still behind start line before lap 1 starts
+  // Handle cars still behind start line before passing checkpoint 0 on any lap
   const effectiveS =
-    racer.lap === 1 && racer.nextCheckpoint === 0 && sAlongLap > track.totalLength * 0.75
+    racer.nextCheckpoint === 0 && sAlongLap > track.totalLength * 0.75
       ? sAlongLap - track.totalLength
       : sAlongLap;
 

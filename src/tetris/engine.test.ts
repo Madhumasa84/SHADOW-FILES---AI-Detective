@@ -68,3 +68,20 @@ test('Rotation succeeds with wall kicks next to left and right edges', () => {
   assert.equal(ok, true);
   assert.ok(w.active.col >= 0);
 });
+
+test('Starting at Level 9 advances to Level 10 after 10 lines cleared and sets locked event', () => {
+  const w = createInitialTetrisWorld(9, () => 0.2);
+  assert.equal(w.level, 9);
+  w.lines = 9;
+  for (let c = 0; c < w.cols; c++) {
+    if (c < 3 || c > 6) {
+      w.board[w.rows - 1][c] = 'J';
+    }
+  }
+  w.active = { type: 'I', rotation: 0, row: 0, col: 3 };
+  hardDropTetrisPiece(w, () => 0.2);
+
+  assert.equal(w.lines, 10);
+  assert.equal(w.level, 10);
+  assert.equal(w.events.locked, true);
+});

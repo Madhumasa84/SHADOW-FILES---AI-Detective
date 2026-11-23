@@ -41,7 +41,7 @@ interface SnakeHud {
   combo: number;
   orbsEaten: number;
   bonusActive: boolean;
-  deathReason: 'wall' | 'self' | null;
+  deathReason: 'wall' | 'self' | 'full' | null;
 }
 
 function readSnakeHud(w: SnakeWorld): SnakeHud {
@@ -322,6 +322,8 @@ export function SnakeGame({ autoStart = false, onSwitchGame }: SnakeGameProps) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (phaseRef.current === 'title') {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           startGame();
@@ -420,8 +422,8 @@ export function SnakeGame({ autoStart = false, onSwitchGame }: SnakeGameProps) {
           playSnakeTone(mutedRef.current, 'bonus');
           setHud(readSnakeHud(world));
         }
-        if (world.events.crashed) {
-          playSnakeTone(mutedRef.current, 'crash');
+        if (world.events.crashed || world.isGameOver) {
+          playSnakeTone(mutedRef.current, world.deathReason === 'full' ? 'bonus' : 'crash');
           setRecords(saveSnakeRecord(world.score, world.segments.length));
           setHud(readSnakeHud(world));
           document.body.dataset.state = 'gameover';
@@ -802,10 +804,16 @@ export function SnakeGame({ autoStart = false, onSwitchGame }: SnakeGameProps) {
           <div className="w-full max-w-md rounded-md border border-[#2E384B] bg-[#12161F] p-6 shadow-2xl">
             <div className="flex items-center gap-2 font-mono-tabular text-[11px] tracking-[0.2em] text-[#D99B38]">
               <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{hud.deathReason === 'wall' ? 'WALL IMPACT' : 'TAIL COLLISION'}</span>
+              <span>
+                {hud.deathReason === 'full'
+                  ? 'PERFECT GRID CLEAR'
+                  : hud.deathReason === 'wall'
+                  ? 'WALL IMPACT'
+                  : 'TAIL COLLISION'}
+              </span>
             </div>
             <h2 id="snake-gameover-title" className="mt-1.5 font-display text-3xl font-bold text-[#F4EFE4]">
-              Run Complete
+              {hud.deathReason === 'full' ? 'Arena Mastered' : 'Run Complete'}
             </h2>
             <div className="mt-5 grid grid-cols-3 gap-3 border-y border-[#222A39] py-4">
               <div>

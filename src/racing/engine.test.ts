@@ -93,16 +93,30 @@ test('All 3 AI opponents race autonomously around the track and maintain valid r
   assert.deepEqual(ranks, [1, 2, 3, 4], 'Ranks must always be a clean permutation of 1..4');
 });
 
-test('Reverse crossing of Start/Finish does not falsely increment lap count', () => {
+test('Reverse crossing of Start/Finish does not falsely increment lap count or progress on Lap 2', () => {
   const world = createInitialRaceWorld('obsidian-ring', true);
   const player = world.racers.find((r) => r.isPlayer)!;
   assert.equal(player.lap, 1);
 
-  // Reverse for 2 seconds behind start line
+  // Reverse for 2 seconds behind start line on Lap 1
   for (let i = 0; i < 60; i++) {
     stepRaceWorld(world, { ...IDLE_INPUT, brake: true }, 1 / 30);
   }
   assert.equal(player.lap, 1, 'Reversing across finish line must not award a lap');
+
+  // Simulate being nudged behind start line at start of Lap 2 (nextCheckpoint === 0)
+  player.lap = 2;
+  player.nextCheckpoint = 0;
+  const nearEndSample = world.track.samples[world.track.samples.length - 5];
+  player.x = nearEndSample.x;
+  player.y = nearEndSample.y;
+  player.trackSampleIdx = world.track.samples.length - 5;
+  player.speed = 0;
+  stepRaceWorld(world, IDLE_INPUT, 1 / 30);
+  assert.ok(
+    player.totalProgress < world.track.totalLength * 1.1,
+    `Lap 2 behind start line must not jump ahead by ~1 full lap (got ${player.totalProgress} vs len ${world.track.totalLength})`
+  );
 });
 
 test('formatRaceTime formats milliseconds cleanly to MM:SS.t', () => {

@@ -165,6 +165,8 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (phaseRef.current === 'title') {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           startRace();
@@ -382,8 +384,8 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
           {/* Left negative-space hero lockup + circuit choice */}
           <div className="max-w-xl my-auto">
             <svg
-              viewBox="0 0 460 142"
-              className="w-full max-w-[440px] h-auto mb-5"
+              viewBox="0 0 460 118"
+              className="w-full max-w-[440px] h-auto mb-3"
               role="img"
               aria-label="NIGHT CIRCUIT — Midnight Racing"
             >
@@ -413,17 +415,11 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
               >
                 NIGHT CIRCUIT
               </text>
-              <line x1="4" y1="114" x2="410" y2="114" stroke="#2D3647" strokeWidth="1.2" />
-              <text
-                x="4"
-                y="134"
-                fill="#C7C0B0"
-                fontFamily="Plus Jakarta Sans, sans-serif"
-                fontSize="14.5"
-              >
-                Outdrive three rival drivers across rain-soaked city circuits.
-              </text>
+              <line x1="4" y1="112" x2="410" y2="112" stroke="#2D3647" strokeWidth="1.2" />
             </svg>
+            <p className="mb-5 text-sm sm:text-[15px] text-[#C7C0B0] leading-relaxed">
+              Outdrive three rival drivers across rain-soaked city circuits.
+            </p>
 
             {/* Circuit selector (interactive segmented buttons) */}
             <div className="mb-6">
@@ -519,45 +515,45 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
       {/* World-Matched Perimeter HUD (pointer-events-none wrapper, >= 85% clear viewport, zero backdrop-blur) */}
       <div className="pointer-events-none fixed inset-0 z-20 flex flex-col justify-between p-3 sm:p-5">
         {/* Top Row: Left Telemetry Cluster + Right Utility Controls */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-2 sm:gap-4">
           {/* Position, Lap & Timer Cluster */}
-          <div className="flex items-center gap-4 sm:gap-6 rounded-md border border-[#2C3547] bg-[#0D1017]/90 px-3.5 py-2 sm:px-5 sm:py-2.5 shadow-xl">
+          <div className="flex items-center gap-2.5 sm:gap-6 rounded-md border border-[#2C3547] bg-[#0D1017]/90 px-2.5 py-1.5 sm:px-5 sm:py-2.5 shadow-xl min-w-0">
             <div>
-              <div className="text-[10px] font-mono-tabular tracking-[0.16em] text-[#98A2B3]">
+              <div className="text-[9px] sm:text-[10px] font-mono-tabular tracking-[0.14em] text-[#98A2B3]">
                 POS
               </div>
-              <div className="font-display text-xl sm:text-2xl font-bold leading-none text-[#EBB556] font-mono-tabular">
+              <div className="font-display text-base sm:text-2xl font-bold leading-none text-[#EBB556] font-mono-tabular">
                 {ordinalRank(hud.rank)}
-                <span className="text-xs font-normal text-[#8B95A7]">/{hud.totalRacers}</span>
+                <span className="text-[10px] sm:text-xs font-normal text-[#8B95A7]">/{hud.totalRacers}</span>
               </div>
             </div>
 
-            <div className="h-7 w-px bg-[#252D3D]" aria-hidden="true" />
+            <div className="h-6 sm:h-7 w-px bg-[#252D3D]" aria-hidden="true" />
 
             <div>
-              <div className="text-[10px] font-mono-tabular tracking-[0.16em] text-[#98A2B3]">
+              <div className="text-[9px] sm:text-[10px] font-mono-tabular tracking-[0.14em] text-[#98A2B3]">
                 LAP
               </div>
-              <div className="font-display text-xl sm:text-2xl font-bold leading-none text-[#F4EFE4] font-mono-tabular">
+              <div className="font-display text-base sm:text-2xl font-bold leading-none text-[#F4EFE4] font-mono-tabular">
                 {hud.lap}
-                <span className="text-xs font-normal text-[#8B95A7]">/{hud.totalLaps}</span>
+                <span className="text-[10px] sm:text-xs font-normal text-[#8B95A7]">/{hud.totalLaps}</span>
               </div>
             </div>
 
-            <div className="h-7 w-px bg-[#252D3D]" aria-hidden="true" />
+            <div className="h-6 sm:h-7 w-px bg-[#252D3D]" aria-hidden="true" />
 
             <div>
-              <div className="text-[10px] font-mono-tabular tracking-[0.16em] text-[#98A2B3]">
+              <div className="text-[9px] sm:text-[10px] font-mono-tabular tracking-[0.14em] text-[#98A2B3]">
                 TIME
               </div>
-              <div className="font-mono-tabular text-base sm:text-lg font-semibold leading-tight text-[#ECE6D8]">
+              <div className="font-mono-tabular text-xs sm:text-lg font-semibold leading-tight text-[#ECE6D8]">
                 {formatRaceTime(hud.elapsedMs)}
               </div>
             </div>
           </div>
 
           {/* Top-Right Compact Utility Controls */}
-          <div className="pointer-events-auto flex items-center gap-2">
+          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               tabIndex={-1}
@@ -567,10 +563,10 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
               }}
               aria-label={`Switch camera view (current: ${CAMERA_LABELS[cameraMode]})`}
               title="Switch Camera View [C]"
-              className="flex h-10 items-center gap-1.5 rounded-md border border-[#2C3547] bg-[#0D1017]/90 px-3 text-[11px] font-mono-tabular font-semibold text-[#EBB556] hover:border-[#D99B38]/70 hover:text-[#F4EFE4] transition-colors cursor-pointer"
+              className="flex h-9 w-9 sm:h-10 sm:w-auto items-center justify-center sm:gap-1.5 rounded-md border border-[#2C3547] bg-[#0D1017]/90 sm:px-3 text-[11px] font-mono-tabular font-semibold text-[#EBB556] hover:border-[#D99B38]/70 hover:text-[#F4EFE4] transition-colors cursor-pointer"
             >
               <Camera className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{CAMERA_LABELS[cameraMode]}</span>
+              <span className="hidden sm:inline">{CAMERA_LABELS[cameraMode]}</span>
             </button>
 
             <button
@@ -582,7 +578,7 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
               }}
               aria-label={muted ? 'Unmute racing audio' : 'Mute racing audio'}
               title="Toggle Audio [M]"
-              className="flex h-10 w-10 items-center justify-center rounded-md border border-[#2C3547] bg-[#0D1017]/90 text-[#C8D0DE] hover:border-[#D99B38]/60 hover:text-[#F4EFE4] transition-colors cursor-pointer"
+              className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-md border border-[#2C3547] bg-[#0D1017]/90 text-[#C8D0DE] hover:border-[#D99B38]/60 hover:text-[#F4EFE4] transition-colors cursor-pointer"
             >
               {muted ? (
                 <VolumeX className="h-4 w-4 text-[#8D97A8]" aria-hidden="true" />
@@ -600,7 +596,7 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
               }}
               aria-label="Restart race"
               title="Restart Race [R]"
-              className="flex h-10 w-10 items-center justify-center rounded-md border border-[#2C3547] bg-[#0D1017]/90 text-[#C8D0DE] hover:border-[#D99B38]/60 hover:text-[#F4EFE4] transition-colors cursor-pointer"
+              className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-md border border-[#2C3547] bg-[#0D1017]/90 text-[#C8D0DE] hover:border-[#D99B38]/60 hover:text-[#F4EFE4] transition-colors cursor-pointer"
             >
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -615,7 +611,7 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
               }}
               aria-label="Pause race"
               title="Pause [Esc / P]"
-              className="flex h-10 w-10 items-center justify-center rounded-md border border-[#2C3547] bg-[#0D1017]/90 text-[#C8D0DE] hover:border-[#D99B38]/60 hover:text-[#F4EFE4] transition-colors cursor-pointer"
+              className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-md border border-[#2C3547] bg-[#0D1017]/90 text-[#C8D0DE] hover:border-[#D99B38]/60 hover:text-[#F4EFE4] transition-colors cursor-pointer"
             >
               <Pause className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -644,9 +640,9 @@ export function RacingGame({ autoStart = false, onSwitchGame }: RacingGameProps)
           )}
         </div>
 
-        {/* Bottom Row: Speedometer & Nitro Gauge (Bottom-Right; Bottom-Left holds canvas Minimap) */}
-        <div className="flex items-end justify-end">
-          <div className="rounded-md border border-[#2C3547] bg-[#0D1017]/90 px-4 py-3 shadow-xl min-w-[168px] sm:min-w-[196px]">
+        {/* Bottom Row: Speedometer & Nitro Gauge (lifted above mobile touch controls on < md) */}
+        <div className="flex items-end justify-end mb-16 md:mb-0">
+          <div className="rounded-md border border-[#2C3547] bg-[#0D1017]/90 px-3.5 py-2.5 sm:px-4 sm:py-3 shadow-xl min-w-[156px] sm:min-w-[196px]">
             <div className="flex items-baseline justify-between gap-3">
               <span className="font-mono-tabular text-3xl sm:text-4xl font-bold leading-none text-[#F4EFE4]">
                 {hud.speedKmh}

@@ -30,6 +30,17 @@ import { loadRacingRecords, type RacingRecords } from './racing/engine';
 import { loadSnakeRecords, type SnakeRecords } from './snake/engine';
 import { loadTetrisRecords, type TetrisRecords } from './tetris/engine';
 import { load2048Records, type Records2048 } from './tiles2048/engine';
+import { loadAllExtraRecords, type ExtraGameId, type ExtraGamesRecordsMap } from './arcade/records';
+import { Connect4Game } from './components/games/Connect4Game';
+import { ReversiGame } from './components/games/ReversiGame';
+import { CheckersGame } from './components/games/CheckersGame';
+import { BattleshipGame } from './components/games/BattleshipGame';
+import { GomokuGame } from './components/games/GomokuGame';
+import { SudokuGame } from './components/games/SudokuGame';
+import { MinesweeperGame } from './components/games/MinesweeperGame';
+import { CipherGame } from './components/games/CipherGame';
+import { BreakoutGame } from './components/games/BreakoutGame';
+import { PongGame } from './components/games/PongGame';
 import {
   getLocationTransitionPreset,
   getWorkspaceCameraVariants,
@@ -64,6 +75,38 @@ const ACTIVE_CASE = MIDNIGHT_DISAPPEARANCE_CASE;
 const SAVE_KEY = `${STORAGE_KEY_PREFIX}${ACTIVE_CASE.id}`;
 const RACING_BACKDROP_URL = '/src/assets/images/racing_midnight_circuit_1795262317862.jpg';
 
+const EXTRA_BACKDROPS: Record<ExtraGameId, string> = {
+  connect4: '/src/assets/images/connect4_obsidian_four_1795332577969.jpg',
+  reversi: '/src/assets/images/reversi_eclipse_othello_1795332581022.jpg',
+  checkers: '/src/assets/images/checkers_noir_draughts_1795332577552.jpg',
+  battleship: '/src/assets/images/battleship_iron_fleet_1795332577251.jpg',
+  gomoku: '/src/assets/images/gomoku_five_row_1795332578284.jpg',
+  sudoku: '/src/assets/images/sudoku_vault_grid_1795332576829.jpg',
+  minesweeper: '/src/assets/images/minesweeper_tactical_grid_1795332577695.jpg',
+  cipher: '/src/assets/images/cipher_vault_word_1795332577698.jpg',
+  breakout: '/src/assets/images/breakout_prism_breaker_1795332579609.jpg',
+  pong: '/src/assets/images/pong_velvet_arena_1795332576869.jpg',
+};
+
+const VALID_NON_DETECTIVE_GAMES = new Set<LaunchableGameId>([
+  'racing',
+  'chess',
+  '2048',
+  'snake',
+  'tetris',
+  'blackjack',
+  'connect4',
+  'reversi',
+  'checkers',
+  'battleship',
+  'gomoku',
+  'sudoku',
+  'minesweeper',
+  'cipher',
+  'breakout',
+  'pong',
+]);
+
 type SelectedGame = 'hub' | LaunchableGameId;
 
 function loadSavedState(): InvestigationState | null {
@@ -80,15 +123,8 @@ function getInitialSelectedGame(): SelectedGame {
   if (typeof window === 'undefined') return 'hub';
   const params = new URLSearchParams(window.location.search);
   const game = params.get('game');
-  if (
-    game === 'racing' ||
-    game === 'chess' ||
-    game === '2048' ||
-    game === 'snake' ||
-    game === 'tetris' ||
-    game === 'blackjack'
-  ) {
-    return game;
+  if (game && VALID_NON_DETECTIVE_GAMES.has(game as LaunchableGameId)) {
+    return game as LaunchableGameId;
   }
   if (game === 'detective' || params.get('autostart') === '1') return 'detective';
   return 'hub';
@@ -116,6 +152,9 @@ export default function App() {
   const [tetrisRecords, setTetrisRecords] = useState<TetrisRecords>(() => loadTetrisRecords());
   const [blackjackRecords, setBlackjackRecords] = useState<BlackjackRecords>(() =>
     loadBlackjackRecords()
+  );
+  const [extraRecords, setExtraRecords] = useState<ExtraGamesRecordsMap>(() =>
+    loadAllExtraRecords()
   );
 
   const [savedSnapshot, setSavedSnapshot] = useState<InvestigationState | null>(() =>
@@ -234,6 +273,7 @@ export default function App() {
     setSnakeRecords(loadSnakeRecords());
     setTetrisRecords(loadTetrisRecords());
     setBlackjackRecords(loadBlackjackRecords());
+    setExtraRecords(loadAllExtraRecords());
     document.body.dataset.state = 'title';
     setSelectedGame('hub');
   }, []);
@@ -380,19 +420,20 @@ export default function App() {
     [state.activeLocationId, triggerNarrativeBeat]
   );
 
-  const handleCollectClue = useCallback((clueId: string) => {
-    setState((prev) => {
-      const { state: next, newlyCollected } = collectClue(prev, ACTIVE_CASE, clueId);
+  const handleCollectClue = useCallback(
+    (clueId: string) => {
+      const { state: next, newlyCollected } = collectClue(state, ACTIVE_CASE, clueId);
       if (newlyCollected) {
+        setState(next);
         noirAudio.playClueDiscover();
         const clue = ACTIVE_CASE.clues.find((c) => c.id === clueId);
         if (clue) {
           setToastText(`Logged ${clue.code}: ${clue.title}`);
         }
       }
-      return next;
-    });
-  }, []);
+    },
+    [state]
+  );
 
   const handleMoveBoardCard = useCallback((clueId: string, x: number, y: number) => {
     setState((prev) => moveBoardCard(prev, clueId, x, y));
@@ -400,42 +441,37 @@ export default function App() {
 
   const handleLinkClues = useCallback(
     (fromClueId: string, toClueId: string) => {
-      let outcome: {
-        matchedTitle?: string;
-        duplicate?: boolean;
-        status?: 'confirmed' | 'speculation';
-      } = {};
+      const res = linkEvidenceClues(state, ACTIVE_CASE, fromClueId, toClueId);
+      if (res.duplicate) {
+        return { duplicate: true };
+      }
 
-      setState((prev) => {
-        const res = linkEvidenceClues(prev, ACTIVE_CASE, fromClueId, toClueId);
-        if (res.duplicate) {
-          outcome = { duplicate: true };
-          return prev;
-        }
-        if (res.matchedContradiction) {
-          noirAudio.playContradictionSting();
-          outcome = {
-            status: 'confirmed',
-            matchedTitle: res.matchedContradiction.title,
-          };
-          triggerNarrativeBeat({
-            kind: 'contradiction',
-            kicker: 'CONTRADICTION EXPOSED',
-            headline: res.matchedContradiction.title,
-            durationMs: 1200,
-            letterbox: true,
-            vignetteStrength: 'crimson',
-          });
-        } else if (res.createdLink) {
-          noirAudio.playLinkSnap();
-          outcome = { status: 'speculation' };
-        }
-        return res.state;
-      });
+      setState(res.state);
 
-      return outcome;
+      if (res.matchedContradiction) {
+        noirAudio.playContradictionSting();
+        triggerNarrativeBeat({
+          kind: 'contradiction',
+          kicker: 'CONTRADICTION EXPOSED',
+          headline: res.matchedContradiction.title,
+          durationMs: 1200,
+          letterbox: true,
+          vignetteStrength: 'crimson',
+        });
+        return {
+          status: 'confirmed' as const,
+          matchedTitle: res.matchedContradiction.title,
+        };
+      }
+
+      if (res.createdLink) {
+        noirAudio.playLinkSnap();
+        return { status: 'speculation' as const };
+      }
+
+      return {};
     },
-    [triggerNarrativeBeat]
+    [state, triggerNarrativeBeat]
   );
 
   const handleRemoveLink = useCallback((linkId: string) => {
@@ -528,6 +564,7 @@ export default function App() {
           snake: SNAKE_BACKDROP_URL,
           tetris: TETRIS_BACKDROP_URL,
           blackjack: BLACKJACK_BACKDROP_URL,
+          ...EXTRA_BACKDROPS,
         }}
         hasSavedCase={hasDetectiveProgress}
         savedClueCount={savedSnapshot?.discoveredClueIds.length ?? 0}
@@ -538,6 +575,7 @@ export default function App() {
         snakeRecords={snakeRecords}
         tetrisRecords={tetrisRecords}
         blackjackRecords={blackjackRecords}
+        extraRecords={extraRecords}
         onSelectGame={(game) => {
           if (game === 'detective') {
             setPhase('title');
@@ -572,6 +610,106 @@ export default function App() {
     return <BlackjackGame autoStart={blackjackAutoStart} onSwitchGame={handleReturnToHub} />;
   }
 
+  if (selectedGame === 'connect4') {
+    return (
+      <Connect4Game
+        backdropUrl={EXTRA_BACKDROPS.connect4}
+        autoStart={getAutoStartFor('connect4')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
+  if (selectedGame === 'reversi') {
+    return (
+      <ReversiGame
+        backdropUrl={EXTRA_BACKDROPS.reversi}
+        autoStart={getAutoStartFor('reversi')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
+  if (selectedGame === 'checkers') {
+    return (
+      <CheckersGame
+        backdropUrl={EXTRA_BACKDROPS.checkers}
+        autoStart={getAutoStartFor('checkers')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
+  if (selectedGame === 'battleship') {
+    return (
+      <BattleshipGame
+        backdropUrl={EXTRA_BACKDROPS.battleship}
+        autoStart={getAutoStartFor('battleship')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
+  if (selectedGame === 'gomoku') {
+    return (
+      <GomokuGame
+        backdropUrl={EXTRA_BACKDROPS.gomoku}
+        autoStart={getAutoStartFor('gomoku')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
+  if (selectedGame === 'sudoku') {
+    return (
+      <SudokuGame
+        backdropUrl={EXTRA_BACKDROPS.sudoku}
+        autoStart={getAutoStartFor('sudoku')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
+  if (selectedGame === 'minesweeper') {
+    return (
+      <MinesweeperGame
+        backdropUrl={EXTRA_BACKDROPS.minesweeper}
+        autoStart={getAutoStartFor('minesweeper')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
+  if (selectedGame === 'cipher') {
+    return (
+      <CipherGame
+        backdropUrl={EXTRA_BACKDROPS.cipher}
+        autoStart={getAutoStartFor('cipher')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
+  if (selectedGame === 'breakout') {
+    return (
+      <BreakoutGame
+        backdropUrl={EXTRA_BACKDROPS.breakout}
+        autoStart={getAutoStartFor('breakout')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
+  if (selectedGame === 'pong') {
+    return (
+      <PongGame
+        backdropUrl={EXTRA_BACKDROPS.pong}
+        autoStart={getAutoStartFor('pong')}
+        onSwitchGame={handleReturnToHub}
+      />
+    );
+  }
+
   if (phase === 'title') {
     return (
       <TitleScreen
@@ -597,6 +735,7 @@ export default function App() {
             document.body.dataset.state = 'title';
             setPhase('title');
           }}
+          onSwitchGame={handleReturnToHub}
         />
         <CinematicCameraOverlay beat={narrativeBeat} />
       </>

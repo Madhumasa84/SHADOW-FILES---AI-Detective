@@ -71,3 +71,21 @@ test('Self-collision ends the run cleanly', () => {
   assert.equal(w.isGameOver, true);
   assert.equal(w.deathReason, 'self');
 });
+
+test('Filling the final open grid cell ends the run cleanly as a full-grid clear', () => {
+  const w = createInitialSnakeWorld('classic', false, () => 0.1);
+  w.cols = 2;
+  w.rows = 2;
+  w.segments = [
+    { x: 0, y: 0 },
+    { x: 0, y: 1 },
+    { x: 1, y: 1 },
+  ];
+  w.direction = 'right';
+  w.food = { x: 1, y: 0 };
+
+  stepSnakeGridTick(w, () => 0.1);
+  assert.equal(w.segments.length, 4);
+  assert.equal(w.isGameOver, true);
+  assert.equal(w.deathReason, 'full');
+});

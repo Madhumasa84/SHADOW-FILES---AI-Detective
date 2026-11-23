@@ -102,3 +102,26 @@ test('Splitting a pair produces two independent playable hands and deducts secon
   assert.equal(settled.hands[1].outcome, 'win');
   assert.equal(settled.bankroll, 1200);
 });
+
+test('Splitting Aces that immediately draw 21 auto-stands and settles without requiring manual Stand', () => {
+  const base = createInitialBlackjackState(1000, () => 0.4);
+  base.pendingBet = 100;
+  base.shoe = [
+    ...base.shoe.slice(0, 60),
+    c('K', 'hearts'),   // split hand B draw -> A+K = 21
+    c('Q', 'spades'),   // split hand A draw -> A+Q = 21
+    c('8', 'clubs'),    // d2 -> dealer 18
+    c('A', 'hearts'),   // p2
+    c('10', 'diamonds'), // d1
+    c('A', 'spades'),   // p1
+  ];
+
+  const dealt = dealNewHand(base, () => 0.4);
+  assert.equal(dealt.stage, 'player-turn');
+  const split = splitActiveHand(dealt, () => 0.4);
+  assert.equal(split.stage, 'settled');
+  assert.equal(split.hands.length, 2);
+  assert.equal(split.hands[0].outcome, 'win');
+  assert.equal(split.hands[1].outcome, 'win');
+  assert.equal(split.bankroll, 1200);
+});

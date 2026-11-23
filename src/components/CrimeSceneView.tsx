@@ -130,15 +130,12 @@ export function CrimeSceneView({
   const isSelectedCollected = selectedClue ? discoveredClueIds.includes(selectedClue.id) : false;
 
   const handleZoomChange = (delta: number) => {
-    setZoom((prev) => {
-      const next = Math.max(1, Math.min(2.2, Number((prev + delta).toFixed(2))));
-      const { width, height } = stageSizeRef.current;
-      setPan((p) => clampCameraPan(p.x, p.y, next, width, height));
-      if (next !== prev) {
-        noirAudio.playCameraZoom(next > prev);
-      }
-      return next;
-    });
+    const next = Math.max(1, Math.min(2.2, Number((zoom + delta).toFixed(2))));
+    if (next === zoom) return;
+    const { width, height } = stageSizeRef.current;
+    setZoom(next);
+    setPan((p) => clampCameraPan(p.x, p.y, next, width, height));
+    noirAudio.playCameraZoom(next > zoom);
   };
 
   const handleCollectWithBeat = (clueId: string) => {
@@ -627,7 +624,7 @@ export function CrimeSceneView({
                           <button
                             key={hs.id}
                             type="button"
-                            onClick={() => setSelectedHotspotId(hs.id)}
+                            onClick={() => focusOnHotspot(hs)}
                             className="flex w-full items-center justify-between gap-2 rounded-md border border-[#252D3B] bg-[#161B24] px-3 py-2.5 text-left text-xs transition-colors hover:border-[#D99B38]/60 hover:bg-[#1C222E] cursor-pointer"
                           >
                             <span className="flex items-center gap-2.5 min-w-0">
